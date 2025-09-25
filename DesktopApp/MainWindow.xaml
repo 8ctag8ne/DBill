@@ -1,0 +1,62 @@
+<Window x:Class="DBill.WpfApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DBill Database" Height="650" Width="1000" MinHeight="500" MinWidth="800">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Padding" Value="10,2"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0" Margin="10">
+            <TextBlock Text="DBill Database" FontSize="20" FontWeight="Bold" Margin="0,0,0,5"/>
+            <TextBlock Name="tbCurrentDbName" Text="(База не вибрана)" FontSize="14" FontWeight="SemiBold" Foreground="DarkSlateGray" Margin="0,0,0,15"/>
+            <Button Name="btnCreateDb" Content="Створити базу" Height="35"/>
+            <Button Name="btnOpenDb" Content="Відкрити базу" Height="35"/>
+            <Button Name="btnSaveDb" Content="Зберегти базу" Height="35"/>
+            <Separator Margin="0,10,0,10"/>
+            <Button Name="btnAddTable" Content="Додати таблицю" Height="35"/>
+            <Button Name="btnDeleteTable" Content="Видалити таблицю" Height="35"/>
+            <TextBlock Text="Таблиці бази:" FontWeight="SemiBold" Margin="0,10,0,5"/>
+            <ListBox Name="lstTables" Height="250"/>
+        </StackPanel>
+        <Grid Grid.Column="1" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Background="#FAFAFA">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <DataGrid Name="dgRows" AutoGenerateColumns="False" Margin="0" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" 
+                                  MouseDoubleClick="dgRows_MouseDoubleClick"/>
+                        <TextBlock Name="tbNoTable" Text="Виберіть таблицю для перегляду її вмісту" 
+                                   Foreground="#888" FontSize="16" FontStyle="Italic" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                        <TextBlock Name="tbEmptyTable" Text="Таблиця порожня" 
+                                   Foreground="#888" FontSize="16" FontStyle="Italic" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                    </Grid>
+                </ScrollViewer>
+            </Border>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Name="btnAddRow" Content="Додати рядок" Height="35" IsEnabled="False"/>
+                <Button Name="btnEditRow" Content="Редагувати рядок" Height="35" Margin="10,0,0,0" IsEnabled="False"/>
+                <Button Name="btnDeleteRow" Content="Видалити рядок" Height="35" Margin="10,0,0,0" IsEnabled="False"/>
+                <Button Name="btnRenameColumn" Content="Перейменувати колонку" Height="35" Margin="20,0,0,0" Click="BtnRenameColumn_Click" IsEnabled="False"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,19 @@
+<Window x:Class="DBill.WpfApp.TextFileDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Вибір текстового файлу" Height="200" Width="400" WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Оберіть текстовий файл для збереження у полі таблиці:"/>
+        <TextBox Name="txtFilePath" Grid.Row="1" Margin="0,10,0,0" IsReadOnly="True"/>
+        <Button Content="Огляд..." Grid.Row="1" HorizontalAlignment="Right" Margin="0,10,0,0" Width="80" Name="btnBrowse"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="OK" Width="80" Margin="0,0,10,0" Name="btnOk"/>
+            <Button Content="Скасувати" Width="80" Name="btnCancel"/>
+        </StackPanel>
+    </Grid>
+</Window>
