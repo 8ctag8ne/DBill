@@ -1,6 +1,9 @@
 using CoreLib.Services;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using DataGrid = System.Windows.Controls.DataGrid;
 
 namespace DBill.WpfApp
 {
@@ -10,17 +13,69 @@ namespace DBill.WpfApp
         private readonly TableService _tableService;
         private readonly FileService _fileService;
 
+        
+            
+        // Активує кнопку перейменування при кліку на хедер
+        private void DgRows_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            // Вимикаємо сортування
+            e.Handled = true;
+            // Активуємо кнопку і зберігаємо вибрану колонку
+            dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items[0], e.Column);
+            UpdateRenameColumnButtonState();
+        }
+        private void DgRows_HeaderClick(object sender, RoutedEventArgs e)
+        {
+            // MessageBox.Show("HeaderClick event triggered");
+            if (e.OriginalSource is DataGridColumnHeader header && header.Column != null)
+            {
+                // MessageBox.Show($"Column header clicked: {header.Column.Header}");
+                dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items.Count > 0 ? dgRows.Items[0] : null, header.Column);
+                UpdateRenameColumnButtonState();
+            }
+            else
+            {
+                // MessageBox.Show("Clicked, but not on column header");
+            }
+        }
+
         public MainWindow(DatabaseService dbService, TableService tableService, FileService fileService)
         {
             InitializeComponent();
             _databaseService = dbService;
             _tableService = tableService;
             _fileService = fileService;
+            
+            // Додаємо прямий обробник кліку на хедер
+            dgRows.LoadingRow += (s, e) => 
+            {
+                // MessageBox.Show($"Loading row {e.Row.GetIndex()}");
+                if (e.Row.Header is DataGridRowHeader header)
+                {
+                    header.Click += DgRows_HeaderClick;
+                }
+            };
+
+            // Додаємо обробник кліку безпосередньо на DataGrid
+            dgRows.PreviewMouseLeftButtonUp += (s, e) =>
+            {
+                var originalSource = e.OriginalSource as DependencyObject;
+                while (originalSource != null && !(originalSource is DataGridColumnHeader))
+                {
+                    originalSource = VisualTreeHelper.GetParent(originalSource);
+                }
+                
+                if (originalSource is DataGridColumnHeader columnHeader)
+                {
+                    // MessageBox.Show($"Column header clicked via PreviewMouseLeftButtonUp: {columnHeader.Column.Header}");
+                    dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items.Count > 0 ? dgRows.Items[0] : null, columnHeader.Column);
+                    UpdateRenameColumnButtonState();
+                }
+            };
+            
             dgRows.SelectedCellsChanged += DgRows_SelectedCellsChanged;
             dgRows.SelectionChanged += DgRows_SelectionChanged;
-            dgRows.MouseDoubleClick += dgRows_MouseDoubleClick;
 
-            btnRenameColumn.Click += BtnRenameColumn_Click;
             btnCreateDb.Click += BtnCreateDb_Click;
             btnOpenDb.Click += BtnOpenDb_Click;
             btnSaveDb.Click += BtnSaveDb_Click;
@@ -30,6 +85,7 @@ namespace DBill.WpfApp
             btnEditRow.Click += BtnEditRow_Click;
             btnDeleteRow.Click += BtnDeleteRow_Click;
             lstTables.SelectionChanged += LstTables_SelectionChanged;
+            dgRows.Sorting += DgRows_Sorting;
 
             UpdateCurrentDbName();
         }
@@ -67,10 +123,21 @@ namespace DBill.WpfApp
         {
             if (lstTables.SelectedItem is not string tableName)
             {
+                // MessageBox.Show("UpdateRenameColumnButtonState: No table selected");
                 btnRenameColumn.IsEnabled = false;
                 return;
             }
+            
+            var currentCell = dgRows.CurrentCell;
+            if (currentCell.Column == null)
+            {
+                // MessageBox.Show("UpdateRenameColumnButtonState: No column selected");
+                btnRenameColumn.IsEnabled = false;
+                return;
+            }
+
             var columns = _tableService.GetColumnNames(tableName);
+            // MessageBox.Show($"UpdateRenameColumnButtonState: Table: {tableName}, Column: {currentCell.Column.Header}, Columns count: {columns.Count}");
             btnRenameColumn.IsEnabled = columns.Count > 0;
         }
 
@@ -188,35 +255,43 @@ namespace DBill.WpfApp
 
         // Додаткові функції для перейменування та перестановки колонок
         private void BtnRenameColumn_Click(object sender, RoutedEventArgs e)
-    {
-        if (lstTables.SelectedItem is not string tableName) return;
-        // Визначаємо колонку: якщо вибрано клітинку — беремо її, інакше першу
-        string oldName = null;
-        if (dgRows.CurrentCell != null && dgRows.CurrentCell.Column != null)
         {
+            if (lstTables.SelectedItem is not string tableName) return;
+            if (dgRows.CurrentCell == null || dgRows.CurrentCell.Column == null) return;
+            
             var header = dgRows.CurrentCell.Column.Header?.ToString();
-            if (!string.IsNullOrWhiteSpace(header))
-                oldName = header.Split('(')[0].Trim();
+            if (string.IsNullOrWhiteSpace(header)) return;
+            
+            var oldName = header.Split('(')[0].Trim();
+            
+            // ✅ ЗБЕРІГАЄМО ПОТОЧНИЙ ПОРЯДОК КОЛОНОК
+            var currentOrder = dgRows.Columns
+                .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToList();
+                
+            var dlg = new RenameColumnDialog(oldName);
+            if (dlg.ShowDialog() == true)
+            {
+                var newName = dlg.NewColumnName;
+                if (string.IsNullOrWhiteSpace(newName)) return;
+                
+                
+                var result = _tableService.RenameColumn(tableName, oldName, newName);
+                if (!result)
+                {
+                    MessageBox.Show("Не вдалося перейменувати колонку.");
+                }
+                else
+                {
+                    // ✅ ОНОВЛЮЄМО ПОРЯДОК (замінюємо стару назву на нову)
+                    var newOrder = currentOrder.Select(n => n == oldName ? newName : n).ToList();
+                    _tableService.ReorderColumns(tableName, newOrder);
+                    
+                    UpdateRowsGrid(tableName);
+                }
+            }
         }
-        if (string.IsNullOrWhiteSpace(oldName))
-        {
-            // Якщо не вибрано — беремо першу колонку
-            var columns = _tableService.GetColumnNames(tableName);
-            if (columns.Count == 0) return;
-            oldName = columns[0];
-        }
-        var dlg = new RenameColumnDialog(oldName);
-        if (dlg.ShowDialog() == true)
-        {
-            var newName = dlg.NewColumnName;
-            if (string.IsNullOrWhiteSpace(newName)) return;
-            var result = _tableService.RenameColumn(tableName, oldName, newName);
-            if (!result)
-                MessageBox.Show("Не вдалося перейменувати колонку.");
-            else
-                UpdateRowsGrid(tableName);
-        }
-    }
 
        private void DgRows_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
         {
@@ -280,7 +355,8 @@ namespace DBill.WpfApp
                     var dgCol = new System.Windows.Controls.DataGridTextColumn
                     {
                         Header = $"{colName} ({colType})",
-                        Binding = new System.Windows.Data.Binding($"[{colName}]")
+                        Binding = new System.Windows.Data.Binding($"[{colName}]"),
+                        CanUserSort = false
                     };
                     dgRows.Columns.Add(dgCol);
                 }
@@ -299,6 +375,7 @@ namespace DBill.WpfApp
             btnAddRow.IsEnabled = true;
             btnEditRow.IsEnabled = dgRows.SelectedIndex >= 0;
             btnDeleteRow.IsEnabled = dgRows.SelectedIndex >= 0;
+            UpdateRenameColumnButtonState();
         }
 
         private void DgRows_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
