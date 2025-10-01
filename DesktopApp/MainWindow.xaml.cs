@@ -36,6 +36,20 @@ namespace DBill.WpfApp
                 // MessageBox.Show("Clicked, but not on column header");
             }
         }
+        
+        private void UpdateDatabaseButtonsState()
+        {
+            bool hasDatabaseLoaded = _databaseService.CurrentDatabase != null;
+            
+            btnAddTable.IsEnabled = hasDatabaseLoaded;
+            btnSaveDb.IsEnabled = hasDatabaseLoaded;
+        }
+
+        private void UpdateTableButtonsState()
+        {
+            bool hasTableSelected = lstTables.SelectedItem != null;
+            btnDeleteTable.IsEnabled = hasTableSelected;
+        }
 
         public MainWindow(DatabaseService dbService, TableService tableService, FileService fileService)
         {
@@ -43,9 +57,9 @@ namespace DBill.WpfApp
             _databaseService = dbService;
             _tableService = tableService;
             _fileService = fileService;
-            
+
             // Додаємо прямий обробник кліку на хедер
-            dgRows.LoadingRow += (s, e) => 
+            dgRows.LoadingRow += (s, e) =>
             {
                 // MessageBox.Show($"Loading row {e.Row.GetIndex()}");
                 if (e.Row.Header is DataGridRowHeader header)
@@ -62,7 +76,7 @@ namespace DBill.WpfApp
                 {
                     originalSource = VisualTreeHelper.GetParent(originalSource);
                 }
-                
+
                 if (originalSource is DataGridColumnHeader columnHeader)
                 {
                     // MessageBox.Show($"Column header clicked via PreviewMouseLeftButtonUp: {columnHeader.Column.Header}");
@@ -70,7 +84,7 @@ namespace DBill.WpfApp
                     UpdateRenameColumnButtonState();
                 }
             };
-            
+
             dgRows.SelectedCellsChanged += DgRows_SelectedCellsChanged;
             dgRows.SelectionChanged += DgRows_SelectionChanged;
             dgRows.ColumnReordered += DgRows_ColumnReordered;
@@ -87,6 +101,8 @@ namespace DBill.WpfApp
             dgRows.Sorting += DgRows_Sorting;
 
             UpdateCurrentDbName();
+            UpdateDatabaseButtonsState();
+            UpdateTableButtonsState();
         }
 
         private void DgRows_ColumnReordered(object sender, DataGridColumnEventArgs e)
@@ -111,6 +127,7 @@ namespace DBill.WpfApp
             _databaseService.CreateDatabase(name);
             UpdateTablesList();
             UpdateCurrentDbName();
+            UpdateDatabaseButtonsState();
             MessageBox.Show($"Базу '{name}' створено.");
         }
 
@@ -124,6 +141,7 @@ namespace DBill.WpfApp
                     await _databaseService.LoadDatabaseAsync(dlg.FileName);
                     UpdateTablesList();
                     UpdateCurrentDbName();
+                    UpdateDatabaseButtonsState();
                     MessageBox.Show("Базу завантажено.");
                 }
                 catch (Exception ex)
@@ -265,6 +283,7 @@ namespace DBill.WpfApp
                 UpdateRowsGrid(null);
                 UpdateRenameColumnButtonState();
             }
+            UpdateTableButtonsState();
         }
 
         // Додаткові функції для перейменування та перестановки колонок
@@ -296,7 +315,7 @@ namespace DBill.WpfApp
                 {
                     // Оновлюємо порядок з новою назвою
                     var newOrder = currentOrder.Select(n => n == oldName ? newName : n).ToList();
-                    _tableService.ReorderColumns(tableName, newOrder);
+                    // _tableService.ReorderColumns(tableName, newOrder);
                     UpdateRowsGrid(tableName);
                 }
             }
@@ -307,20 +326,6 @@ namespace DBill.WpfApp
             UpdateRenameColumnButtonState();
         }
 
-        private void BtnReorderColumns_Click(object sender, RoutedEventArgs e)
-        {
-            if (lstTables.SelectedItem is not string tableName) return;
-            var columns = _tableService.GetColumnNames(tableName);
-            var newOrder = Microsoft.VisualBasic.Interaction.InputBox($"Введіть новий порядок колонок через кому:\n{string.Join(", ", columns)}", "Перестановка колонок");
-            if (string.IsNullOrWhiteSpace(newOrder)) return;
-            var orderList = newOrder.Split(',').Select(s => s.Trim()).ToList();
-            var result = _tableService.ReorderColumns(tableName, orderList);
-            if (!result)
-                MessageBox.Show("Не вдалося змінити порядок колонок.");
-            else
-                UpdateRowsGrid(tableName);
-        }
-
         // Оновлення списку таблиць
         private void UpdateTablesList()
         {
@@ -328,6 +333,7 @@ namespace DBill.WpfApp
             if (lstTables.Items.Count > 0)
                 lstTables.SelectedIndex = 0;
             UpdateCurrentDbName();
+            UpdateTableButtonsState();
         }
 
         private void UpdateCurrentDbName()
