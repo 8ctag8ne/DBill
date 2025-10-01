@@ -12,8 +12,6 @@ namespace DBill.WpfApp
         private readonly DatabaseService _databaseService;
         private readonly TableService _tableService;
         private readonly FileService _fileService;
-
-        
             
         // Активує кнопку перейменування при кліку на хедер
         private void DgRows_Sorting(object sender, DataGridSortingEventArgs e)
@@ -75,6 +73,7 @@ namespace DBill.WpfApp
             
             dgRows.SelectedCellsChanged += DgRows_SelectedCellsChanged;
             dgRows.SelectionChanged += DgRows_SelectionChanged;
+            dgRows.ColumnReordered += DgRows_ColumnReordered;
 
             btnCreateDb.Click += BtnCreateDb_Click;
             btnOpenDb.Click += BtnOpenDb_Click;
@@ -88,6 +87,21 @@ namespace DBill.WpfApp
             dgRows.Sorting += DgRows_Sorting;
 
             UpdateCurrentDbName();
+        }
+
+        private void DgRows_ColumnReordered(object sender, DataGridColumnEventArgs e)
+        {
+            if (lstTables.SelectedItem is not string tableName) return;
+            
+            // Зберігаємо новий порядок після перестановки
+            var newOrder = dgRows.Columns
+                .OrderBy(c => c.DisplayIndex)
+                .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToList();
+            
+            // Зберігаємо в таблиці через сервіс
+            _tableService.ReorderColumns(tableName, newOrder);
         }
 
         private void BtnCreateDb_Click(object sender, RoutedEventArgs e)
@@ -264,18 +278,14 @@ namespace DBill.WpfApp
             
             var oldName = header.Split('(')[0].Trim();
             
-            // ✅ ЗБЕРІГАЄМО ПОТОЧНИЙ ПОРЯДОК КОЛОНОК
-            var currentOrder = dgRows.Columns
-                .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .ToList();
-                
             var dlg = new RenameColumnDialog(oldName);
             if (dlg.ShowDialog() == true)
             {
                 var newName = dlg.NewColumnName;
                 if (string.IsNullOrWhiteSpace(newName)) return;
                 
+                // ✅ БЕРЕМО ПОТОЧНИЙ ПОРЯДОК З ТАБЛИЦІ (він вже оновлений через ColumnReordered)
+                var currentOrder = _tableService.GetColumnNames(tableName);
                 
                 var result = _tableService.RenameColumn(tableName, oldName, newName);
                 if (!result)
@@ -284,10 +294,9 @@ namespace DBill.WpfApp
                 }
                 else
                 {
-                    // ✅ ОНОВЛЮЄМО ПОРЯДОК (замінюємо стару назву на нову)
+                    // Оновлюємо порядок з новою назвою
                     var newOrder = currentOrder.Select(n => n == oldName ? newName : n).ToList();
                     _tableService.ReorderColumns(tableName, newOrder);
-                    
                     UpdateRowsGrid(tableName);
                 }
             }
