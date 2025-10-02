@@ -1,52 +1,184 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using CoreLib.Models;
 
 namespace DBill.WpfApp
 {
     public partial class RowDialog : Window
     {
         public Dictionary<string, object?> Values { get; private set; } = new();
-        private readonly List<string> _columns;
+        private readonly Dictionary<string, Column> _columnInfo;
+        private readonly Dictionary<string, FileRecord?> _fileRecords = new();
 
-        public RowDialog(List<string> columns)
+        public RowDialog(List<Column> columns)
         {
             InitializeComponent();
-            _columns = columns;
+            _columnInfo = columns.ToDictionary(c => c.Name, c => c);
             BuildFields(null);
         }
 
-        public RowDialog(List<string> columns, Dictionary<string, object?> values)
+        public RowDialog(List<Column> columns, Dictionary<string, object?> values)
         {
             InitializeComponent();
-            _columns = columns;
+            _columnInfo = columns.ToDictionary(c => c.Name, c => c);
             BuildFields(values);
         }
 
         private void BuildFields(Dictionary<string, object?>? values)
         {
             spFields.Children.Clear();
-            foreach (var col in _columns)
+            
+            foreach (var kvp in _columnInfo)
             {
+                var colName = kvp.Key;
+                var column = kvp.Value;
+                
                 var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 5) };
-                panel.Children.Add(new TextBlock { Text = col + ":", Width = 120, VerticalAlignment = VerticalAlignment.Center });
-                var tb = new TextBox { Name = "tb_" + col, Width = 250 };
-                if (values != null && values.ContainsKey(col) && values[col] != null)
-                    tb.Text = values[col]?.ToString() ?? "";
-                panel.Children.Add(tb);
+                panel.Children.Add(new TextBlock 
+                { 
+                    Text = colName + ":", 
+                    Width = 120, 
+                    VerticalAlignment = VerticalAlignment.Center 
+                });
+
+                if (column.Type == DataType.IntegerInterval)
+                {
+                    // Інтервал: два TextBox для Min і Max
+                    var innerPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    innerPanel.Children.Add(new TextBlock { Text = "Від:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
+                    var tbMin = new TextBox { Name = "tbMin_" + colName, Width = 60, Margin = new Thickness(0, 0, 10, 0) };
+                    innerPanel.Children.Add(tbMin);
+                    innerPanel.Children.Add(new TextBlock { Text = "До:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
+                    var tbMax = new TextBox { Name = "tbMax_" + colName, Width = 60 };
+                    innerPanel.Children.Add(tbMax);
+
+                    if (values?.ContainsKey(colName) == true && values[colName] is IntegerInterval interval)
+                    {
+                        tbMin.Text = interval.Min.ToString();
+                        tbMax.Text = interval.Max.ToString();
+                    }
+                    panel.Children.Add(innerPanel);
+                }
+                else if (column.Type == DataType.TextFile)
+                {
+                    // Файл: кнопка вибору + назва файлу
+                    var innerPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                    var btnSelect = new Button { Content = "Вибрати файл...", Width = 120, Margin = new Thickness(0, 0, 10, 0) };
+                    var tbFileName = new TextBlock 
+                    { 
+                        Name = "tbFileName_" + colName,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Text = "(файл не вибрано)",
+                        Foreground = System.Windows.Media.Brushes.Gray
+                    };
+
+                    if (values?.ContainsKey(colName) == true && values[colName] is FileRecord fileRecord)
+                    {
+                        _fileRecords[colName] = fileRecord;
+                        tbFileName.Text = fileRecord.FileName;
+                        tbFileName.Foreground = System.Windows.Media.Brushes.Blue;
+                        tbFileName.TextDecorations = TextDecorations.Underline;
+                        tbFileName.Cursor = System.Windows.Input.Cursors.Hand;
+                        tbFileName.MouseLeftButtonUp += (s, e) => OpenFile(fileRecord);
+                    }
+
+                    btnSelect.Click += (s, e) =>
+                    {
+                        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Текстові файли (*.txt)|*.txt" };
+                        if (dlg.ShowDialog() == true)
+                        {
+                            var fr = new FileRecord(Path.GetFileName(dlg.FileName), File.ReadAllBytes(dlg.FileName), "text/plain");
+                            _fileRecords[colName] = fr;
+                            tbFileName.Text = fr.FileName;
+                            tbFileName.Foreground = System.Windows.Media.Brushes.Blue;
+                            tbFileName.TextDecorations = TextDecorations.Underline;
+                            tbFileName.Cursor = System.Windows.Input.Cursors.Hand;
+                            tbFileName.MouseLeftButtonUp += (s2, e2) => OpenFile(fr);
+                        }
+                    };
+
+                    innerPanel.Children.Add(btnSelect);
+                    innerPanel.Children.Add(tbFileName);
+                    panel.Children.Add(innerPanel);
+                }
+                else
+                {
+                    // Звичайний TextBox
+                    var tb = new TextBox { Name = "tb_" + colName, Width = 250 };
+                    if (values?.ContainsKey(colName) == true && values[colName] != null)
+                        tb.Text = values[colName]?.ToString() ?? "";
+                    panel.Children.Add(tb);
+                }
+
                 spFields.Children.Add(panel);
+            }
+        }
+
+        private void OpenFile(FileRecord fileRecord)
+        {
+            try
+            {
+                var tempPath = Path.Combine(Path.GetTempPath(), fileRecord.FileName);
+                File.WriteAllBytes(tempPath, fileRecord.Content);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = $"\"{tempPath}\"",
+                    UseShellExecute = false
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void btnOk_Click(object sender, RoutedEventArgs e)
         {
             Values = new Dictionary<string, object?>();
-            foreach (var col in _columns)
+            
+            foreach (var kvp in _columnInfo)
             {
-                var tb = FindNameInStackPanel(spFields, "tb_" + col) as TextBox;
-                Values[col] = tb?.Text;
+                var colName = kvp.Key;
+                var column = kvp.Value;
+
+                if (column.Type == DataType.IntegerInterval)
+                {
+                    var tbMin = FindControl<TextBox>("tbMin_" + colName);
+                    var tbMax = FindControl<TextBox>("tbMax_" + colName);
+                    
+                    if (tbMin != null && tbMax != null && !string.IsNullOrWhiteSpace(tbMin.Text) && !string.IsNullOrWhiteSpace(tbMax.Text))
+                    {
+                        if (int.TryParse(tbMin.Text, out int min) && int.TryParse(tbMax.Text, out int max))
+                        {
+                            Values[colName] = new IntegerInterval(min, max);
+                        }
+                        else
+                        {
+                            MessageBox.Show($"Некоректні значення для інтервалу '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Values[colName] = null;
+                    }
+                }
+                else if (column.Type == DataType.TextFile)
+                {
+                    Values[colName] = _fileRecords.ContainsKey(colName) ? _fileRecords[colName] : null;
+                }
+                else
+                {
+                    var tb = FindControl<TextBox>("tb_" + colName);
+                    Values[colName] = tb?.Text;
+                }
             }
+            
             DialogResult = true;
             Close();
         }
@@ -57,15 +189,23 @@ namespace DBill.WpfApp
             Close();
         }
 
-        private Control? FindNameInStackPanel(Panel parent, string name)
+        private T? FindControl<T>(string name) where T : FrameworkElement
         {
-            foreach (var child in parent.Children)
+            foreach (var child in spFields.Children)
             {
                 if (child is StackPanel sp)
                 {
                     foreach (var c in sp.Children)
-                        if (c is Control ctrl && ctrl.Name == name)
+                    {
+                        if (c is T ctrl && ctrl.Name == name)
                             return ctrl;
+                        if (c is StackPanel inner)
+                        {
+                            foreach (var ic in inner.Children)
+                                if (ic is T ictrl && ictrl.Name == name)
+                                    return ictrl;
+                        }
+                    }
                 }
             }
             return null;

@@ -1,4 +1,6 @@
 using CoreLib.Services;
+using CoreLib.Models;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -225,8 +227,10 @@ namespace DBill.WpfApp
         private void BtnAddRow_Click(object sender, RoutedEventArgs e)
         {
             if (lstTables.SelectedItem is not string tableName) return;
-            var columns = _tableService.GetColumnNames(tableName);
-            var rowDialog = new RowDialog(columns);
+            var table = _tableService.GetTable(tableName);
+            if (table == null) return;
+            
+            var rowDialog = new RowDialog(table.Columns); // ✅ Передаємо Column, а не string
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
@@ -246,9 +250,14 @@ namespace DBill.WpfApp
             if (lstTables.SelectedItem is not string tableName) return;
             if (dgRows.SelectedItem is not System.Collections.IDictionary row) return;
             int rowIndex = dgRows.SelectedIndex;
-            var columns = _tableService.GetColumnNames(tableName);
-            var oldValues = columns.ToDictionary(c => c, c => row[c]);
-            var rowDialog = new RowDialog(columns, oldValues);
+            
+            var table = _tableService.GetTable(tableName);
+            if (table == null) return;
+            
+            var columns = table.Columns;
+            var oldValues = columns.ToDictionary(c => c.Name, c => row[c.Name]);
+            
+            var rowDialog = new RowDialog(columns, oldValues); // ✅ Передаємо Column, а не string
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
@@ -357,27 +366,71 @@ namespace DBill.WpfApp
                 btnDeleteRow.IsEnabled = false;
                 return;
             }
-            // Формуємо колонки згідно з таблицею
+            
             dgRows.Columns.Clear();
-            var columns = _tableService.GetColumnNames(tableName);
-            var table = _tableService.GetTable(tableName);
-            if (table != null)
+            
+            var columnNames = dgRows.Columns.Count > 0 
+                ? dgRows.Columns.OrderBy(c => c.DisplayIndex)
+                    .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .ToList()
+                : _tableService.GetColumnNames(tableName);
+            
+            foreach (var colName in columnNames)
             {
-                foreach (var col in table.Columns)
+                var column = _tableService.GetColumn(tableName, colName);
+                if (column != null)
                 {
-                    var colName = col.Name;
-                    var colType = col.Type.ToString();
-                    var dgCol = new System.Windows.Controls.DataGridTextColumn
+                    var colType = column.Type.ToString();
+                    
+                    if (column.Type == DataType.TextFile)
                     {
-                        Header = $"{colName} ({colType})",
-                        Binding = new System.Windows.Data.Binding($"[{colName}]"),
-                        CanUserSort = false
-                    };
-                    dgRows.Columns.Add(dgCol);
+                        // Для файлів - гіперпосилання
+                        var dgCol = new System.Windows.Controls.DataGridTemplateColumn
+                        {
+                            Header = $"{colName} ({colType})",
+                            CanUserSort = false
+                        };
+                        
+                        var cellTemplate = new DataTemplate();
+                        var factory = new FrameworkElementFactory(typeof(TextBlock));
+                        factory.SetValue(TextBlock.ForegroundProperty, System.Windows.Media.Brushes.Blue);
+                        factory.SetValue(TextBlock.TextDecorationsProperty, TextDecorations.Underline);
+                        factory.SetValue(TextBlock.CursorProperty, System.Windows.Input.Cursors.Hand);
+                        factory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding($"[{colName}].FileName"));
+                        factory.SetValue(TextBlock.MarginProperty, new Thickness(5));
+                        
+                        factory.AddHandler(TextBlock.MouseLeftButtonUpEvent, new System.Windows.Input.MouseButtonEventHandler((s, e) =>
+                        {
+                            if (s is TextBlock tb && tb.DataContext is System.Collections.IDictionary row)
+                            {
+                                if (row[colName] is FileRecord fileRecord)
+                                {
+                                    OpenFileFromGrid(fileRecord);
+                                }
+                            }
+                        }));
+                        
+                        cellTemplate.VisualTree = factory;
+                        dgCol.CellTemplate = cellTemplate;
+                        dgRows.Columns.Add(dgCol);
+                    }
+                    else
+                    {
+                        var dgCol = new System.Windows.Controls.DataGridTextColumn
+                        {
+                            Header = $"{colName} ({colType})",
+                            Binding = new System.Windows.Data.Binding($"[{colName}]"),
+                            CanUserSort = false
+                        };
+                        dgRows.Columns.Add(dgCol);
+                    }
                 }
             }
+            
             var rows = _tableService.GetAllRows(tableName);
             dgRows.ItemsSource = rows;
+            
             if (rows.Count == 0)
             {
                 if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Visible;
@@ -386,11 +439,31 @@ namespace DBill.WpfApp
             {
                 if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Collapsed;
             }
+            
             if (tbNoTable != null) tbNoTable.Visibility = Visibility.Collapsed;
             btnAddRow.IsEnabled = true;
             btnEditRow.IsEnabled = dgRows.SelectedIndex >= 0;
             btnDeleteRow.IsEnabled = dgRows.SelectedIndex >= 0;
             UpdateRenameColumnButtonState();
+        }
+
+        private void OpenFileFromGrid(FileRecord fileRecord)
+        {
+            try
+            {
+                var tempPath = Path.Combine(Path.GetTempPath(), fileRecord.FileName);
+                File.WriteAllBytes(tempPath, fileRecord.Content);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = $"\"{tempPath}\"",
+                    UseShellExecute = false
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void DgRows_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
