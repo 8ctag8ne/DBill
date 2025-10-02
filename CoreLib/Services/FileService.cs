@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
 using CoreLib.Models;
 
 namespace CoreLib.Services
@@ -16,6 +13,60 @@ namespace CoreLib.Services
             _uploadsDirectory = uploadsDirectory;
         }
 
+        // ✅ НОВИЙ: Зберігає файл і повертає StoragePath (ID)
+        public async Task<string> SaveFileAsync(byte[] content, string fileName)
+        {
+            if (content == null || content.Length == 0)
+                throw new ArgumentException("Content cannot be empty", nameof(content));
+
+            var fileId = Guid.NewGuid().ToString();
+            var newName = $"{fileId}_{fileName}";
+            var filePath = Path.Combine(_uploadsDirectory, newName);
+
+            await _fileStorage.CreateDirectoryAsync(_uploadsDirectory);
+            await _fileStorage.WriteAllBytesAsync(filePath, content);
+            
+            return filePath;
+        }
+
+        // ✅ НОВИЙ: Завантажує файл за StoragePath
+        public async Task<byte[]> LoadFileAsync(string storagePath)
+        {
+            if (string.IsNullOrWhiteSpace(storagePath))
+                throw new ArgumentException("Storage path cannot be null or empty", nameof(storagePath));
+
+            var filePath = Path.Combine(_uploadsDirectory, storagePath);
+            
+            if (!await _fileStorage.ExistsAsync(filePath))
+                throw new FileNotFoundException($"File not found: {storagePath}");
+
+            return await _fileStorage.ReadAllBytesAsync(filePath);
+        }
+
+        // ✅ НОВИЙ: Видаляє файл за StoragePath
+        public async Task<bool> DeleteFileAsync(string storagePath)
+        {
+            if (string.IsNullOrWhiteSpace(storagePath))
+                return false;
+
+            var filePath = Path.Combine(_uploadsDirectory, storagePath);
+            return await _fileStorage.DeleteAsync(filePath);
+        }
+
+        // ✅ НОВИЙ: Очищає всі файли в директорії
+        public async Task CleanupAllFilesAsync()
+        {
+            if (!await _fileStorage.ExistsAsync(_uploadsDirectory))
+                return;
+
+            var files = await _fileStorage.ListFilesAsync(_uploadsDirectory);
+            foreach (var file in files)
+            {
+                await _fileStorage.DeleteAsync(file);
+            }
+        }
+
+        // Існуючі методи залишаються без змін
         public async Task<FileRecord> CreateFileRecordAsync(string fileName, byte[] content, string? mimeType = null)
         {
             if (string.IsNullOrWhiteSpace(fileName))
@@ -29,42 +80,7 @@ namespace CoreLib.Services
             return await Task.FromResult(new FileRecord(fileName, content, mimeType));
         }
 
-        public async Task<FileRecord> LoadFileRecordAsync(string filePath)
-        {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be null or empty", nameof(filePath));
-
-            if (!await _fileStorage.ExistsAsync(filePath))
-                throw new FileNotFoundException($"File not found: {filePath}");
-
-            var content = await _fileStorage.ReadAllBytesAsync(filePath);
-            var fileName = Path.GetFileName(filePath);
-            var mimeType = GetMimeType(Path.GetExtension(filePath));
-
-            return new FileRecord(fileName, content, mimeType);
-        }
-
-        public async Task<string> SaveFileRecordAsync(FileRecord fileRecord, string? customFileName = null)
-        {
-            if (fileRecord == null)
-                throw new ArgumentNullException(nameof(fileRecord));
-
-            var fileName = customFileName ?? $"{Guid.NewGuid()}_{fileRecord.FileName}";
-            var filePath = Path.Combine(_uploadsDirectory, fileName);
-
-            // Ensure uploads directory exists
-            await _fileStorage.CreateDirectoryAsync(_uploadsDirectory);
-            
-            await _fileStorage.WriteAllBytesAsync(filePath, fileRecord.Content);
-            return filePath;
-        }
-
-        public async Task<bool> DeleteFileRecordAsync(string filePath)
-        {
-            return await _fileStorage.DeleteAsync(filePath);
-        }
-
-        public ValidationResult ValidateFileRecord(FileRecord fileRecord, long maxSizeBytes = 10 * 1024 * 1024) // 10MB default
+        public ValidationResult ValidateFileRecord(FileRecord fileRecord, long maxSizeBytes = 10 * 1024 * 1024)
         {
             var result = new ValidationResult();
 
