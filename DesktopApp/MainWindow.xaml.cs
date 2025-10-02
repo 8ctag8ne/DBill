@@ -14,6 +14,21 @@ namespace DBill.WpfApp
         private readonly DatabaseService _databaseService;
         private readonly TableService _tableService;
         private readonly FileService _fileService;
+
+        protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            base.OnClosing(e);
+
+            // Очищаємо тимчасові файли при закритті
+            try
+            {
+                await _databaseService.CloseDatabase();
+            }
+            catch
+            {
+                // Ігноруємо помилки очищення
+            }
+        }
             
         // Активує кнопку перейменування при кліку на хедер
         private void DgRows_Sorting(object sender, DataGridSortingEventArgs e)
@@ -122,10 +137,14 @@ namespace DBill.WpfApp
             _tableService.ReorderColumns(tableName, newOrder);
         }
 
-        private void BtnCreateDb_Click(object sender, RoutedEventArgs e)
+        private async void BtnCreateDb_Click(object sender, RoutedEventArgs e)
         {
+            // Очищаємо файли попередньої бази
+            await _databaseService.CloseDatabase();
+
             var name = Microsoft.VisualBasic.Interaction.InputBox("Введіть назву бази:", "Створення бази");
             if (string.IsNullOrWhiteSpace(name)) return;
+            
             _databaseService.CreateDatabase(name);
             UpdateTablesList();
             UpdateCurrentDbName();
@@ -140,6 +159,9 @@ namespace DBill.WpfApp
             {
                 try
                 {
+                    // Очищаємо файли попередньої бази
+                    await _databaseService.CloseDatabase();
+
                     await _databaseService.LoadDatabaseAsync(dlg.FileName);
                     UpdateTablesList();
                     UpdateCurrentDbName();
@@ -230,7 +252,7 @@ namespace DBill.WpfApp
             var table = _tableService.GetTable(tableName);
             if (table == null) return;
             
-            var rowDialog = new RowDialog(table.Columns); // ✅ Передаємо Column, а не string
+            var rowDialog = new RowDialog(table.Columns, _fileService); // Передаємо FileService
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
@@ -257,7 +279,7 @@ namespace DBill.WpfApp
             var columns = table.Columns;
             var oldValues = columns.ToDictionary(c => c.Name, c => row[c.Name]);
             
-            var rowDialog = new RowDialog(columns, oldValues); // ✅ Передаємо Column, а не string
+            var rowDialog = new RowDialog(columns, oldValues, _fileService); // Передаємо FileService
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
@@ -451,12 +473,10 @@ namespace DBill.WpfApp
         {
             try
             {
-                var tempPath = Path.Combine(Path.GetTempPath(), fileRecord.FileName);
-                File.WriteAllBytes(tempPath, fileRecord.Content);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "notepad.exe",
-                    Arguments = $"\"{tempPath}\"",
+                    Arguments = $"\"{fileRecord.StoragePath}\"",
                     UseShellExecute = false
                 });
             }

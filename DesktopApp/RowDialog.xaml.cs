@@ -5,44 +5,65 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using CoreLib.Models;
+using CoreLib.Services;
 
 namespace DBill.WpfApp
 {
     public partial class RowDialog : Window
     {
+        private readonly FileService _fileService;
         public Dictionary<string, object?> Values { get; private set; } = new();
         private readonly Dictionary<string, Column> _columnInfo;
         private readonly Dictionary<string, FileRecord?> _fileRecords = new();
 
-        public RowDialog(List<Column> columns)
+        public RowDialog(List<Column> columns, FileService fileService)
         {
             InitializeComponent();
             _columnInfo = columns.ToDictionary(c => c.Name, c => c);
+            _fileService = fileService;
             BuildFields(null);
         }
 
-        public RowDialog(List<Column> columns, Dictionary<string, object?> values)
+        public RowDialog(List<Column> columns, Dictionary<string, object?> values, FileService fileService)
         {
             InitializeComponent();
             _columnInfo = columns.ToDictionary(c => c.Name, c => c);
+            _fileService = fileService;
             BuildFields(values);
+        }
+
+        private async Task OpenFile(FileRecord fileRecord)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = $"\"{fileRecord.StoragePath}\"",
+                    UseShellExecute = false
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}");
+            }
         }
 
         private void BuildFields(Dictionary<string, object?>? values)
         {
             spFields.Children.Clear();
-            
+
             foreach (var kvp in _columnInfo)
             {
                 var colName = kvp.Key;
                 var column = kvp.Value;
-                
+
                 var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 5) };
-                panel.Children.Add(new TextBlock 
-                { 
-                    Text = colName + ":", 
-                    Width = 120, 
-                    VerticalAlignment = VerticalAlignment.Center 
+                panel.Children.Add(new TextBlock
+                {
+                    Text = colName + ":",
+                    Width = 120,
+                    VerticalAlignment = VerticalAlignment.Center
                 });
 
                 if (column.Type == DataType.IntegerInterval)
@@ -68,8 +89,8 @@ namespace DBill.WpfApp
                     // Файл: кнопка вибору + назва файлу
                     var innerPanel = new StackPanel { Orientation = Orientation.Horizontal };
                     var btnSelect = new Button { Content = "Вибрати файл...", Width = 120, Margin = new Thickness(0, 0, 10, 0) };
-                    var tbFileName = new TextBlock 
-                    { 
+                    var tbFileName = new TextBlock
+                    {
                         Name = "tbFileName_" + colName,
                         VerticalAlignment = VerticalAlignment.Center,
                         Text = "(файл не вибрано)",
@@ -86,18 +107,32 @@ namespace DBill.WpfApp
                         tbFileName.MouseLeftButtonUp += (s, e) => OpenFile(fileRecord);
                     }
 
-                    btnSelect.Click += (s, e) =>
+                    btnSelect.Click += async (s, e) =>
                     {
                         var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Текстові файли (*.txt)|*.txt" };
                         if (dlg.ShowDialog() == true)
                         {
-                            var fr = new FileRecord(Path.GetFileName(dlg.FileName), File.ReadAllBytes(dlg.FileName), "text/plain");
-                            _fileRecords[colName] = fr;
-                            tbFileName.Text = fr.FileName;
-                            tbFileName.Foreground = System.Windows.Media.Brushes.Blue;
-                            tbFileName.TextDecorations = TextDecorations.Underline;
-                            tbFileName.Cursor = System.Windows.Input.Cursors.Hand;
-                            tbFileName.MouseLeftButtonUp += (s2, e2) => OpenFile(fr);
+                            try
+                            {
+                                var fileContent = File.ReadAllBytes(dlg.FileName);
+                                var fileName = Path.GetFileName(dlg.FileName);
+                                
+                                // Зберігаємо файл через FileService
+                                var storagePath = await _fileService.SaveFileAsync(fileContent, fileName);
+                                
+                                var fr = new FileRecord(fileName, storagePath, fileContent.Length, "text/plain");
+                                _fileRecords[colName] = fr;
+                                
+                                tbFileName.Text = fr.FileName;
+                                tbFileName.Foreground = System.Windows.Media.Brushes.Blue;
+                                tbFileName.TextDecorations = TextDecorations.Underline;
+                                tbFileName.Cursor = System.Windows.Input.Cursors.Hand;
+                                tbFileName.MouseLeftButtonUp += async (s2, e2) => await OpenFile(fr);
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"Помилка завантаження файлу: {ex.Message}");
+                            }
                         }
                     };
 
@@ -115,25 +150,6 @@ namespace DBill.WpfApp
                 }
 
                 spFields.Children.Add(panel);
-            }
-        }
-
-        private void OpenFile(FileRecord fileRecord)
-        {
-            try
-            {
-                var tempPath = Path.Combine(Path.GetTempPath(), fileRecord.FileName);
-                File.WriteAllBytes(tempPath, fileRecord.Content);
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "notepad.exe",
-                    Arguments = $"\"{tempPath}\"",
-                    UseShellExecute = false
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
