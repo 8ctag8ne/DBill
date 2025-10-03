@@ -8,8 +8,8 @@ namespace CoreLib.Services
     /// </summary>
     public interface IDatabaseStorageService
     {
-        Task<Database> LoadDatabaseAsync(string filePath);
-        Task SaveDatabaseAsync(Database database, string filePath);
+        Task<Database> LoadDatabaseAsync(string filePath, CancellationToken ct = default);
+        Task SaveDatabaseAsync(Database database, string filePath, CancellationToken ct = default);
         Task<bool> DatabaseExistsAsync(string filePath);
     }
 }

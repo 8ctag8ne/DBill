@@ -147,7 +147,7 @@ namespace CoreLib.Serialization
             return JsonSerializer.Deserialize<IntegerInterval>(doc.RootElement.GetRawText(), options);
         }
 
-        public override void Write(Utf8JsonWriter writer, Column value, JsonSerializerOptions options)
+        public override async void Write(Utf8JsonWriter writer, Column value, JsonSerializerOptions options)
         {
             writer.WriteStartObject();
             writer.WriteString("name", value.Name);

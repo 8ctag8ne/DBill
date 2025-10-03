@@ -1,3 +1,4 @@
+// CoreLib/Serialization/FileRecordConverter.cs
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -109,6 +110,7 @@ namespace CoreLib.Serialization
                 try
                 {
                     contentToWrite = _fileService.LoadFileAsync(value.StoragePath).GetAwaiter().GetResult();
+                    System.Diagnostics.Debug.WriteLine($"Loaded file content: {Convert.ToBase64String(contentToWrite)}");
                 }
                 catch (Exception ex)
                 {

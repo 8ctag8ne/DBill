@@ -1,3 +1,4 @@
+//CoreLib/Services/FileService.cs
 using CoreLib.Models;
 
 namespace CoreLib.Services
@@ -35,7 +36,7 @@ namespace CoreLib.Services
             if (string.IsNullOrWhiteSpace(storagePath))
                 throw new ArgumentException("Storage path cannot be null or empty", nameof(storagePath));
 
-            var filePath = Path.Combine(_uploadsDirectory, storagePath);
+            var filePath = storagePath;
 
             if (!await _fileStorage.ExistsAsync(filePath))
                 throw new FileNotFoundException($"File not found: {storagePath}");
