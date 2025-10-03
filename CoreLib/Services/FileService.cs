@@ -25,7 +25,7 @@ namespace CoreLib.Services
 
             await _fileStorage.CreateDirectoryAsync(_uploadsDirectory);
             await _fileStorage.WriteAllBytesAsync(filePath, content);
-            
+
             return filePath;
         }
 
@@ -36,7 +36,7 @@ namespace CoreLib.Services
                 throw new ArgumentException("Storage path cannot be null or empty", nameof(storagePath));
 
             var filePath = Path.Combine(_uploadsDirectory, storagePath);
-            
+
             if (!await _fileStorage.ExistsAsync(filePath))
                 throw new FileNotFoundException($"File not found: {storagePath}");
 
@@ -76,7 +76,7 @@ namespace CoreLib.Services
                 throw new ArgumentNullException(nameof(content));
 
             mimeType ??= GetMimeType(Path.GetExtension(fileName));
-            
+
             return await Task.FromResult(new FileRecord(fileName, content, mimeType));
         }
 
@@ -116,6 +116,20 @@ namespace CoreLib.Services
                 ".config" => "text/plain",
                 _ => "application/octet-stream"
             };
+        }
+
+        public Task WriteAllBytesAsync(string path, byte[] content)
+        {
+            return _fileStorage.WriteAllBytesAsync(path, content);
+        }
+
+        public Task<bool> ExistsAsync(string path)
+        {
+            return _fileStorage.ExistsAsync(path);
+        }
+        public Task<byte[]> ReadAllBytesAsync(string path)
+        {
+            return _fileStorage.ReadAllBytesAsync(path);
         }
     }
 }

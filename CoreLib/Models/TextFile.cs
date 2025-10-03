@@ -9,7 +9,7 @@ namespace CoreLib.Models
     {
         public string FileName { get; set; } = string.Empty;
         
-        // Шлях до файлу у FileService (ID)
+        // Шлях до файлу у FileService
         public string? StoragePath { get; set; }
         
         // Content використовується тільки під час серіалізації/десеріалізації

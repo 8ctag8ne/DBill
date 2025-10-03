@@ -4,27 +4,19 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using CoreLib.Models;
+using CoreLib.Serialization;
 
 namespace CoreLib.Services
 {
-    /// <summary>
-    /// JSON-based database storage service
-    /// </summary>
     public class JsonDatabaseStorageService : IDatabaseStorageService
     {
         private readonly IFileStorageService _fileStorage;
-        private readonly JsonSerializerOptions _jsonOptions;
+        private readonly FileService _fileService;
 
-        public JsonDatabaseStorageService(IFileStorageService fileStorage)
+        public JsonDatabaseStorageService(IFileStorageService fileStorage, FileService fileService)
         {
             _fileStorage = fileStorage ?? throw new ArgumentNullException(nameof(fileStorage));
-            _jsonOptions = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                Converters = { new JsonStringEnumConverter() }
-            };
+            _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         }
 
         public async Task<Database> LoadDatabaseAsync(string filePath)
@@ -39,7 +31,25 @@ namespace CoreLib.Services
             {
                 var jsonBytes = await _fileStorage.ReadAllBytesAsync(filePath);
                 var jsonContent = Encoding.UTF8.GetString(jsonBytes);
-                var database = JsonSerializer.Deserialize<Database>(jsonContent, _jsonOptions);
+                
+                var fileRecordConverter = new FileRecordConverter(_fileService, isSerializing: false);
+                var columnConverter = new ColumnConverter(fileRecordConverter);
+                
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    Converters = 
+                    { 
+                        new JsonStringEnumConverter(),
+                        columnConverter,  // ✅ Додаємо ColumnConverter
+                        fileRecordConverter
+                    }
+                };
+                
+                var database = JsonSerializer.Deserialize<Database>(jsonContent, options);
                 
                 if (database == null)
                     throw new InvalidOperationException("Failed to deserialize database from file");
@@ -62,7 +72,24 @@ namespace CoreLib.Services
 
             try
             {
-                var jsonContent = JsonSerializer.Serialize(database, _jsonOptions);
+                var fileRecordConverter = new FileRecordConverter(_fileService, isSerializing: true);
+                var columnConverter = new ColumnConverter(fileRecordConverter);
+                
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    Converters = 
+                    { 
+                        new JsonStringEnumConverter(),
+                        columnConverter,  // ✅ Додаємо ColumnConverter
+                        fileRecordConverter
+                    }
+                };
+                
+                var jsonContent = JsonSerializer.Serialize(database, options);
                 var jsonBytes = Encoding.UTF8.GetBytes(jsonContent);
                 await _fileStorage.WriteAllBytesAsync(filePath, jsonBytes);
             }
@@ -71,7 +98,6 @@ namespace CoreLib.Services
                 throw new InvalidOperationException($"Failed to save database to file: {ex.Message}", ex);
             }
         }
-
         public async Task<bool> DatabaseExistsAsync(string filePath)
         {
             return await _fileStorage.ExistsAsync(filePath);

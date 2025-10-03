@@ -27,9 +27,10 @@ namespace CoreLib.Services
 
         public async Task<Database> LoadDatabaseAsync(string filePath)
         {
+            // Десеріалізація з автоматичним збереженням файлів на диск
             _currentDatabase = await _storageService.LoadDatabaseAsync(filePath);
             
-            // Зберігаємо файли на диск і очищаємо Content з пам'яті
+            // Зберігаємо файли на диск і очищаємо Content
             await SaveFileContentsAfterDeserializationAsync();
 
             var validation = _currentDatabase.Validate();
@@ -48,13 +49,9 @@ namespace CoreLib.Services
             if (!validation.IsValid)
                 throw new InvalidOperationException($"Cannot save invalid database: {string.Join(", ", validation.Errors)}");
 
-            // Завантажуємо Content для всіх FileRecord перед серіалізацією
-            await LoadFileContentsForSerializationAsync();
-
+            // Серіалізація з автоматичним завантаженням файлів з диску
+            // Конвертер сам завантажує файли по одному при записі
             await _storageService.SaveDatabaseAsync(_currentDatabase, filePath);
-
-            // Очищаємо Content після серіалізації
-            ClearFileContentsAfterSerialization();
         }
 
         public List<string> GetTableNames()
@@ -85,7 +82,6 @@ namespace CoreLib.Services
             if (_currentDatabase == null)
                 throw new InvalidOperationException("No database is currently loaded");
 
-            // Видаляємо файли з таблиці перед її видаленням
             var table = _currentDatabase.GetTable(tableName);
             if (table != null)
             {
@@ -111,63 +107,12 @@ namespace CoreLib.Services
             return _currentDatabase.Validate();
         }
 
-        // Очищення файлів при закритті бази
         public async Task CloseDatabase()
         {
             if (_currentDatabase != null)
             {
                 await _fileService.CleanupAllFilesAsync();
                 _currentDatabase = null;
-            }
-        }
-
-        private async Task LoadFileContentsForSerializationAsync()
-        {
-            if (_currentDatabase == null) return;
-
-            foreach (var table in _currentDatabase.Tables)
-            {
-                foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
-                {
-                    var rows = table.GetAllRows();
-                    for (int i = 0; i < rows.Count; i++)
-                    {
-                        if (rows[i][column.Name] is FileRecord fileRecord && 
-                            !string.IsNullOrWhiteSpace(fileRecord.StoragePath))
-                        {
-                            try
-                            {
-                                // Завантажуємо вміст файлу з диску
-                                fileRecord.Content = await _fileService.LoadFileAsync(fileRecord.StoragePath);
-                            }
-                            catch (Exception ex)
-                            {
-                                throw new InvalidOperationException(
-                                    $"Failed to load file content for serialization: {fileRecord.FileName}", ex);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private void ClearFileContentsAfterSerialization()
-        {
-            if (_currentDatabase == null) return;
-
-            foreach (var table in _currentDatabase.Tables)
-            {
-                foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
-                {
-                    var rows = table.GetAllRows();
-                    foreach (var row in rows)
-                    {
-                        if (row[column.Name] is FileRecord fileRecord)
-                        {
-                            fileRecord.Content = null;
-                        }
-                    }
-                }
             }
         }
 
@@ -187,18 +132,17 @@ namespace CoreLib.Services
                         {
                             try
                             {
-                                // Зберігаємо файл на диск і отримуємо StoragePath
                                 var storagePath = await _fileService.SaveFileAsync(
                                     fileRecord.Content, 
                                     fileRecord.FileName);
                                 
                                 fileRecord.StoragePath = storagePath;
-                                fileRecord.Content = null; // Очищаємо з пам'яті
+                                fileRecord.Content = null;
                             }
                             catch (Exception ex)
                             {
                                 throw new InvalidOperationException(
-                                    $"Failed to save file content after deserialization: {fileRecord.FileName}", ex);
+                                    $"Failed to save file content: {fileRecord.FileName}", ex);
                             }
                         }
                     }
@@ -220,10 +164,7 @@ namespace CoreLib.Services
                         {
                             await _fileService.DeleteFileAsync(fileRecord.StoragePath);
                         }
-                        catch
-                        {
-                            // Ігноруємо помилки видалення файлів
-                        }
+                        catch { }
                     }
                 }
             }

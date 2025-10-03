@@ -162,36 +162,100 @@ namespace DBill.WpfApp
                 var colName = kvp.Key;
                 var column = kvp.Value;
 
-                if (column.Type == DataType.IntegerInterval)
+                try
                 {
-                    var tbMin = FindControl<TextBox>("tbMin_" + colName);
-                    var tbMax = FindControl<TextBox>("tbMax_" + colName);
-                    
-                    if (tbMin != null && tbMax != null && !string.IsNullOrWhiteSpace(tbMin.Text) && !string.IsNullOrWhiteSpace(tbMax.Text))
+                    switch (column.Type)
                     {
-                        if (int.TryParse(tbMin.Text, out int min) && int.TryParse(tbMax.Text, out int max))
-                        {
-                            Values[colName] = new IntegerInterval(min, max);
-                        }
-                        else
-                        {
-                            MessageBox.Show($"Некоректні значення для інтервалу '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        Values[colName] = null;
+                        case DataType.Integer:
+                            var tbInt = FindControl<TextBox>("tb_" + colName);
+                            if (tbInt != null && !string.IsNullOrWhiteSpace(tbInt.Text))
+                            {
+                                if (int.TryParse(tbInt.Text, out int intValue))
+                                    Values[colName] = intValue; // ✅ Зберігаємо як int, не string
+                                else
+                                {
+                                    MessageBox.Show($"Некоректне ціле число для '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                Values[colName] = null;
+                            }
+                            break;
+
+                        case DataType.Real:
+                            var tbReal = FindControl<TextBox>("tb_" + colName);
+                            if (tbReal != null && !string.IsNullOrWhiteSpace(tbReal.Text))
+                            {
+                                if (double.TryParse(tbReal.Text, out double realValue))
+                                    Values[colName] = realValue; // ✅ Зберігаємо як double
+                                else
+                                {
+                                    MessageBox.Show($"Некоректне дійсне число для '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                Values[colName] = null;
+                            }
+                            break;
+
+                        case DataType.Char:
+                            var tbChar = FindControl<TextBox>("tb_" + colName);
+                            if (tbChar != null && !string.IsNullOrWhiteSpace(tbChar.Text))
+                            {
+                                if (tbChar.Text.Length == 1)
+                                    Values[colName] = tbChar.Text[0]; // ✅ Зберігаємо як char
+                                else
+                                {
+                                    MessageBox.Show($"Поле '{colName}' має містити один символ.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                Values[colName] = null;
+                            }
+                            break;
+
+                        case DataType.IntegerInterval:
+                            var tbMin = FindControl<TextBox>("tbMin_" + colName);
+                            var tbMax = FindControl<TextBox>("tbMax_" + colName);
+                            
+                            if (tbMin != null && tbMax != null && !string.IsNullOrWhiteSpace(tbMin.Text) && !string.IsNullOrWhiteSpace(tbMax.Text))
+                            {
+                                if (int.TryParse(tbMin.Text, out int min) && int.TryParse(tbMax.Text, out int max))
+                                {
+                                    Values[colName] = new IntegerInterval(min, max);
+                                }
+                                else
+                                {
+                                    MessageBox.Show($"Некоректні значення для інтервалу '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                Values[colName] = null;
+                            }
+                            break;
+                        
+                        case DataType.TextFile:
+                            Values[colName] = _fileRecords.ContainsKey(colName) ? _fileRecords[colName] : null;
+                            break;
+                        
+                        default: // String
+                            var tb = FindControl<TextBox>("tb_" + colName);
+                            Values[colName] = tb?.Text;
+                            break;
                     }
                 }
-                else if (column.Type == DataType.TextFile)
+                catch (Exception ex)
                 {
-                    Values[colName] = _fileRecords.ContainsKey(colName) ? _fileRecords[colName] : null;
-                }
-                else
-                {
-                    var tb = FindControl<TextBox>("tb_" + colName);
-                    Values[colName] = tb?.Text;
+                    MessageBox.Show($"Помилка обробки поля '{colName}': {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
             }
             
