@@ -1,6 +1,5 @@
 using CoreLib.Services;
 using CoreLib.Models;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -239,11 +238,12 @@ namespace DBill.WpfApp
 
         private void BtnAddTable_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new TableDialog();
+            var dlg = new TableDialog(_tableService); // Передаємо TableService
             if (dlg.ShowDialog() == true)
             {
                 var tableName = dlg.TableName;
                 var columns = dlg.Columns;
+                
                 try
                 {
                     _tableService.CreateTable(tableName, columns);
@@ -252,7 +252,7 @@ namespace DBill.WpfApp
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Помилка: {ex.Message}");
+                    MessageBox.Show($"Помилка створення таблиці: {ex.Message}");
                 }
             }
         }
@@ -274,44 +274,33 @@ namespace DBill.WpfApp
             if (lstTables.SelectedItem is not string tableName) return;
             var table = _tableService.GetTable(tableName);
             if (table == null) return;
-
-            var rowDialog = new RowDialog(table.Columns, _fileService); // Передаємо FileService
+            
+            var rowDialog = new RowDialog(tableName, table.Columns, _fileService, _tableService);
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
-                var validation = _tableService.ValidateRow(tableName, values);
-                if (!validation.IsValid)
-                {
-                    MessageBox.Show($"Помилка: {string.Join(", ", validation.Errors)}");
-                    return;
-                }
                 _tableService.AddRow(tableName, values);
                 BuildTableUI(tableName);
             }
         }
+
 
         private void BtnEditRow_Click(object sender, RoutedEventArgs e)
         {
             if (lstTables.SelectedItem is not string tableName) return;
             if (dgRows.SelectedItem is not System.Collections.IDictionary row) return;
             int rowIndex = dgRows.SelectedIndex;
-
+            
             var table = _tableService.GetTable(tableName);
             if (table == null) return;
-
+            
             var columns = table.Columns;
             var oldValues = columns.ToDictionary(c => c.Name, c => row[c.Name]);
-
-            var rowDialog = new RowDialog(columns, oldValues, _fileService); // Передаємо FileService
+            
+            var rowDialog = new RowDialog(tableName, columns, oldValues, _fileService, _tableService);
             if (rowDialog.ShowDialog() == true)
             {
                 var values = rowDialog.Values;
-                var validation = _tableService.ValidateRow(tableName, values);
-                if (!validation.IsValid)
-                {
-                    MessageBox.Show($"Помилка: {string.Join(", ", validation.Errors)}");
-                    return;
-                }
                 _tableService.UpdateRow(tableName, rowIndex, values);
                 BuildTableUI(tableName);
             }
@@ -395,101 +384,6 @@ namespace DBill.WpfApp
             if (tbCurrentDbName == null) return;
             var db = _databaseService.CurrentDatabase;
             tbCurrentDbName.Text = db != null ? $"База: {db.Name}" : "(База не вибрана)";
-        }
-
-        // Оновлення DataGrid з рядками
-        private void UpdateRowsGrid(string tableName)
-        {
-            if (string.IsNullOrWhiteSpace(tableName))
-            {
-                dgRows.Columns.Clear();
-                dgRows.ItemsSource = null;
-                if (tbNoTable != null) tbNoTable.Visibility = Visibility.Visible;
-                if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Collapsed;
-                btnAddRow.IsEnabled = false;
-                btnEditRow.IsEnabled = false;
-                btnDeleteRow.IsEnabled = false;
-                return;
-            }
-
-            dgRows.Columns.Clear();
-
-            var columnNames = dgRows.Columns.Count > 0
-                ? dgRows.Columns.OrderBy(c => c.DisplayIndex)
-                    .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
-                    .Where(n => !string.IsNullOrWhiteSpace(n))
-                    .ToList()
-                : _tableService.GetColumnNames(tableName);
-
-            foreach (var colName in columnNames)
-            {
-                var column = _tableService.GetColumn(tableName, colName);
-                if (column != null)
-                {
-                    var colType = column.Type.ToString();
-
-                    if (column.Type == DataType.TextFile)
-                    {
-                        // Для файлів - гіперпосилання
-                        var dgCol = new System.Windows.Controls.DataGridTemplateColumn
-                        {
-                            Header = $"{colName} ({colType})",
-                            CanUserSort = false
-                        };
-
-                        var cellTemplate = new DataTemplate();
-                        var factory = new FrameworkElementFactory(typeof(TextBlock));
-                        factory.SetValue(TextBlock.ForegroundProperty, System.Windows.Media.Brushes.Blue);
-                        factory.SetValue(TextBlock.TextDecorationsProperty, TextDecorations.Underline);
-                        factory.SetValue(TextBlock.CursorProperty, System.Windows.Input.Cursors.Hand);
-                        factory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding($"[{colName}].FileName"));
-                        factory.SetValue(TextBlock.MarginProperty, new Thickness(5));
-
-                        factory.AddHandler(TextBlock.MouseLeftButtonUpEvent, new System.Windows.Input.MouseButtonEventHandler((s, e) =>
-                        {
-                            if (s is TextBlock tb && tb.DataContext is System.Collections.IDictionary row)
-                            {
-                                if (row[colName] is FileRecord fileRecord)
-                                {
-                                    OpenFileFromGrid(fileRecord);
-                                }
-                            }
-                        }));
-
-                        cellTemplate.VisualTree = factory;
-                        dgCol.CellTemplate = cellTemplate;
-                        dgRows.Columns.Add(dgCol);
-                    }
-                    else
-                    {
-                        var dgCol = new System.Windows.Controls.DataGridTextColumn
-                        {
-                            Header = $"{colName} ({colType})",
-                            Binding = new System.Windows.Data.Binding($"[{colName}]"),
-                            CanUserSort = false
-                        };
-                        dgRows.Columns.Add(dgCol);
-                    }
-                }
-            }
-
-            var rows = _tableService.GetAllRows(tableName);
-            dgRows.ItemsSource = rows;
-
-            if (rows.Count == 0)
-            {
-                if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Collapsed;
-            }
-
-            if (tbNoTable != null) tbNoTable.Visibility = Visibility.Collapsed;
-            btnAddRow.IsEnabled = true;
-            btnEditRow.IsEnabled = dgRows.SelectedIndex >= 0;
-            btnDeleteRow.IsEnabled = dgRows.SelectedIndex >= 0;
-            UpdateRenameColumnButtonState();
         }
 
         private void OpenFileFromGrid(FileRecord fileRecord)

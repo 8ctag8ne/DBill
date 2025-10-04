@@ -1,7 +1,5 @@
-using System;
-using System.Collections.Generic;
+//DesktopApp/RowDialog.xaml.cs
 using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using CoreLib.Models;
@@ -11,24 +9,31 @@ namespace DBill.WpfApp
 {
     public partial class RowDialog : Window
     {
+        private readonly TableService _tableService;
         private readonly FileService _fileService;
+        private readonly string _tableName;
         public Dictionary<string, object?> Values { get; private set; } = new();
         private readonly Dictionary<string, Column> _columnInfo;
         private readonly Dictionary<string, FileRecord?> _fileRecords = new();
 
-        public RowDialog(List<Column> columns, FileService fileService)
+        public RowDialog(string tableName, List<Column> columns, FileService fileService, TableService tableService)
         {
             InitializeComponent();
+            _tableName = tableName;
             _columnInfo = columns.ToDictionary(c => c.Name, c => c);
             _fileService = fileService;
+            _tableService = tableService;
             BuildFields(null);
         }
 
-        public RowDialog(List<Column> columns, Dictionary<string, object?> values, FileService fileService)
+        public RowDialog(string tableName, List<Column> columns, Dictionary<string, object?> values, 
+                    FileService fileService, TableService tableService)
         {
             InitializeComponent();
+            _tableName = tableName;
             _columnInfo = columns.ToDictionary(c => c.Name, c => c);
             _fileService = fileService;
+            _tableService = tableService;
             BuildFields(values);
         }
 
@@ -153,9 +158,29 @@ namespace DBill.WpfApp
             }
         }
 
-        private void btnOk_Click(object sender, RoutedEventArgs e)
+        private async void btnOk_Click(object sender, RoutedEventArgs e)
         {
-            Values = new Dictionary<string, object?>();
+            // Збираємо "сирі" дані з форми
+            var rawData = CollectRawDataFromForm();
+            
+            // Використовуємо бібліотеку для парсингу та валідації
+            var (parsedValues, validation) = _tableService.ParseAndValidateRowData(
+                _tableName, rawData, _fileRecords);
+
+            if (!validation.IsValid)
+            {
+                ShowError(string.Join("\n", validation.Errors));
+                return;
+            }
+
+            Values = parsedValues;
+            DialogResult = true;
+            Close();
+        }
+
+        private Dictionary<string, object?> CollectRawDataFromForm()
+        {
+            var rawData = new Dictionary<string, object?>();
             
             foreach (var kvp in _columnInfo)
             {
@@ -167,106 +192,51 @@ namespace DBill.WpfApp
                     switch (column.Type)
                     {
                         case DataType.Integer:
-                            var tbInt = FindControl<TextBox>("tb_" + colName);
-                            if (tbInt != null && !string.IsNullOrWhiteSpace(tbInt.Text))
-                            {
-                                if (int.TryParse(tbInt.Text, out int intValue))
-                                    Values[colName] = intValue; // ✅ Зберігаємо як int, не string
-                                else
-                                {
-                                    MessageBox.Show($"Некоректне ціле число для '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                    return;
-                                }
-                            }
-                            else
-                            {
-                                Values[colName] = null;
-                            }
-                            break;
-
                         case DataType.Real:
-                            var tbReal = FindControl<TextBox>("tb_" + colName);
-                            if (tbReal != null && !string.IsNullOrWhiteSpace(tbReal.Text))
-                            {
-                                if (double.TryParse(tbReal.Text, out double realValue))
-                                    Values[colName] = realValue; // ✅ Зберігаємо як double
-                                else
-                                {
-                                    MessageBox.Show($"Некоректне дійсне число для '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                    return;
-                                }
-                            }
-                            else
-                            {
-                                Values[colName] = null;
-                            }
-                            break;
-
                         case DataType.Char:
-                            var tbChar = FindControl<TextBox>("tb_" + colName);
-                            if (tbChar != null && !string.IsNullOrWhiteSpace(tbChar.Text))
-                            {
-                                if (tbChar.Text.Length == 1)
-                                    Values[colName] = tbChar.Text[0]; // ✅ Зберігаємо як char
-                                else
-                                {
-                                    MessageBox.Show($"Поле '{colName}' має містити один символ.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                    return;
-                                }
-                            }
-                            else
-                            {
-                                Values[colName] = null;
-                            }
+                        case DataType.String:
+                            var tb = FindControl<TextBox>("tb_" + colName);
+                            rawData[colName] = tb?.Text;
                             break;
 
                         case DataType.IntegerInterval:
+                            // Збираємо дані з двох полів у спеціальний об'єкт
                             var tbMin = FindControl<TextBox>("tbMin_" + colName);
                             var tbMax = FindControl<TextBox>("tbMax_" + colName);
-                            
-                            if (tbMin != null && tbMax != null && !string.IsNullOrWhiteSpace(tbMin.Text) && !string.IsNullOrWhiteSpace(tbMax.Text))
-                            {
-                                if (int.TryParse(tbMin.Text, out int min) && int.TryParse(tbMax.Text, out int max))
-                                {
-                                    Values[colName] = new IntegerInterval(min, max);
-                                }
-                                else
-                                {
-                                    MessageBox.Show($"Некоректні значення для інтервалу '{colName}'.", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                    return;
-                                }
-                            }
-                            else
-                            {
-                                Values[colName] = null;
-                            }
+                            rawData[colName] = new { 
+                                Min = tbMin?.Text ?? "", 
+                                Max = tbMax?.Text ?? "" 
+                            };
                             break;
-                        
+
                         case DataType.TextFile:
-                            Values[colName] = _fileRecords.ContainsKey(colName) ? _fileRecords[colName] : null;
+                            // Файли вже зберігаються в _fileRecords
                             break;
-                        
-                        default: // String
-                            var tb = FindControl<TextBox>("tb_" + colName);
-                            Values[colName] = tb?.Text;
+
+                        default:
+                            var defaultTb = FindControl<TextBox>("tb_" + colName);
+                            rawData[colName] = defaultTb?.Text;
                             break;
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Помилка обробки поля '{colName}': {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
+                    rawData[colName] = null;
                 }
             }
             
-            DialogResult = true;
-            Close();
+            return rawData;
         }
 
         private void btnCancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
             Close();
+        }
+
+        private void ShowError(string message)
+        {
+            MessageBox.Show(message, "Помилка валідації", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         private T? FindControl<T>(string name) where T : FrameworkElement
