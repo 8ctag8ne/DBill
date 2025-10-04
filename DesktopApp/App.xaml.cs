@@ -1,11 +1,8 @@
 using CoreLib.Services;
-using Microsoft.Extensions.DependencyInjection;
-using System;
 using System.Windows;
 
 namespace DBill.WpfApp
 {
-    // App.xaml.cs або точка входу
     public partial class App : Application
     {
         protected override void OnStartup(StartupEventArgs e)
@@ -14,11 +11,23 @@ namespace DBill.WpfApp
 
             // Ініціалізація сервісів
             var localStorage = new LocalFileStorage();
+            
+            // Основний FileService для постійних файлів
             var fileService = new FileService(localStorage, "uploads");
-            var tempFileService = new FileService(localStorage, "tempFiles");
             var databaseStorage = new JsonDatabaseStorageService(localStorage, fileService);
+
+            // Тимчасовий FileService для ізольованого завантаження
+            var tempFileService = new FileService(localStorage, "tempFiles");
             var tempDatabaseStorage = new JsonDatabaseStorageService(localStorage, tempFileService);
-            var databaseService = new DatabaseService(databaseStorage, tempDatabaseStorage, fileService);
+            
+            // DatabaseService отримує обидва сервіси
+            var databaseService = new DatabaseService(
+                databaseStorage, 
+                tempDatabaseStorage, 
+                fileService,
+                tempFileService
+            );
+            
             var tableService = new TableService(databaseService);
 
             var mainWindow = new MainWindow(databaseService, tableService, fileService);

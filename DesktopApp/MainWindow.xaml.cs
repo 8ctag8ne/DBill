@@ -29,7 +29,7 @@ namespace DBill.WpfApp
                 // Ігноруємо помилки очищення
             }
         }
-            
+
         // Активує кнопку перейменування при кліку на хедер
         private void DgRows_Sorting(object sender, DataGridSortingEventArgs e)
         {
@@ -53,11 +53,11 @@ namespace DBill.WpfApp
                 // MessageBox.Show("Clicked, but not on column header");
             }
         }
-        
+
         private void UpdateDatabaseButtonsState()
         {
             bool hasDatabaseLoaded = _databaseService.CurrentDatabase != null;
-            
+
             btnAddTable.IsEnabled = hasDatabaseLoaded;
             btnSaveDb.IsEnabled = hasDatabaseLoaded;
         }
@@ -125,14 +125,14 @@ namespace DBill.WpfApp
         private void DgRows_ColumnReordered(object sender, DataGridColumnEventArgs e)
         {
             if (lstTables.SelectedItem is not string tableName) return;
-            
+
             // Зберігаємо новий порядок після перестановки
             var newOrder = dgRows.Columns
                 .OrderBy(c => c.DisplayIndex)
                 .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
                 .Where(n => !string.IsNullOrWhiteSpace(n))
                 .ToList();
-            
+
             // Зберігаємо в таблиці через сервіс
             _tableService.ReorderColumns(tableName, newOrder);
         }
@@ -144,8 +144,9 @@ namespace DBill.WpfApp
 
             var name = Microsoft.VisualBasic.Interaction.InputBox("Введіть назву бази:", "Створення бази");
             if (string.IsNullOrWhiteSpace(name)) return;
-            
+
             _databaseService.CreateDatabase(name);
+            ClearTableUI();
             UpdateTablesList();
             UpdateCurrentDbName();
             UpdateDatabaseButtonsState();
@@ -159,20 +160,29 @@ namespace DBill.WpfApp
 
             try
             {
-                // Вся логіка безпечного завантаження всередині DatabaseService
+                
+                // ОЧИЩАЄМО UI ПЕРЕД ЗАВАНТАЖЕННЯМ
+                ClearTableUI();
+                
                 await _databaseService.LoadDatabaseAsync(dlg.FileName);
 
                 UpdateTablesList();
                 UpdateCurrentDbName();
                 UpdateDatabaseButtonsState();
+                
+                // ЯКЩО Є ТАБЛИЦІ - БУДУЄМО UI ПЕРШОЇ ТАБЛИЦІ
+                if (lstTables.Items.Count > 0 && lstTables.SelectedItem is string firstTable)
+                {
+                    BuildTableUI(firstTable);
+                }
                 MessageBox.Show("Базу завантажено.", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка завантаження бази:\n{ex.Message}\n\nПопередня база залишилась відкритою.", 
-                    "Помилка", 
-                    MessageBoxButton.OK, 
+                    $"Помилка завантаження бази:\n{ex.Message}\n\nПопередня база залишилась відкритою.",
+                    "Помилка",
+                    MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
             }
@@ -186,7 +196,7 @@ namespace DBill.WpfApp
                 btnRenameColumn.IsEnabled = false;
                 return;
             }
-            
+
             var currentCell = dgRows.CurrentCell;
             if (currentCell.Column == null)
             {
@@ -219,9 +229,9 @@ namespace DBill.WpfApp
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка збереження бази:\n{ex.Message}\n\nБаза залишилась у пам'яті без змін.", 
-                    "Помилка", 
-                    MessageBoxButton.OK, 
+                    $"Помилка збереження бази:\n{ex.Message}\n\nБаза залишилась у пам'яті без змін.",
+                    "Помилка",
+                    MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
             }
@@ -264,7 +274,7 @@ namespace DBill.WpfApp
             if (lstTables.SelectedItem is not string tableName) return;
             var table = _tableService.GetTable(tableName);
             if (table == null) return;
-            
+
             var rowDialog = new RowDialog(table.Columns, _fileService); // Передаємо FileService
             if (rowDialog.ShowDialog() == true)
             {
@@ -276,7 +286,7 @@ namespace DBill.WpfApp
                     return;
                 }
                 _tableService.AddRow(tableName, values);
-                UpdateRowsGrid(tableName);
+                BuildTableUI(tableName);
             }
         }
 
@@ -285,13 +295,13 @@ namespace DBill.WpfApp
             if (lstTables.SelectedItem is not string tableName) return;
             if (dgRows.SelectedItem is not System.Collections.IDictionary row) return;
             int rowIndex = dgRows.SelectedIndex;
-            
+
             var table = _tableService.GetTable(tableName);
             if (table == null) return;
-            
+
             var columns = table.Columns;
             var oldValues = columns.ToDictionary(c => c.Name, c => row[c.Name]);
-            
+
             var rowDialog = new RowDialog(columns, oldValues, _fileService); // Передаємо FileService
             if (rowDialog.ShowDialog() == true)
             {
@@ -303,7 +313,7 @@ namespace DBill.WpfApp
                     return;
                 }
                 _tableService.UpdateRow(tableName, rowIndex, values);
-                UpdateRowsGrid(tableName);
+                BuildTableUI(tableName);
             }
         }
 
@@ -312,19 +322,19 @@ namespace DBill.WpfApp
             if (lstTables.SelectedItem is not string tableName) return;
             if (dgRows.SelectedIndex < 0) return;
             _tableService.DeleteRow(tableName, dgRows.SelectedIndex);
-            UpdateRowsGrid(tableName);
+            BuildTableUI(tableName);
         }
 
         private void LstTables_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (lstTables.SelectedItem is string tableName)
             {
-                UpdateRowsGrid(tableName);
-                UpdateRenameColumnButtonState();
+                // ВИКОРИСТОВУЄМО НОВИЙ МЕТОД ДЛЯ ПОБУДОВИ UI
+                BuildTableUI(tableName);
             }
             else
             {
-                UpdateRowsGrid(null);
+                ClearTableUI();
                 UpdateRenameColumnButtonState();
             }
             UpdateTableButtonsState();
@@ -335,21 +345,21 @@ namespace DBill.WpfApp
         {
             if (lstTables.SelectedItem is not string tableName) return;
             if (dgRows.CurrentCell == null || dgRows.CurrentCell.Column == null) return;
-            
+
             var header = dgRows.CurrentCell.Column.Header?.ToString();
             if (string.IsNullOrWhiteSpace(header)) return;
-            
+
             var oldName = header.Split('(')[0].Trim();
-            
+
             var dlg = new RenameColumnDialog(oldName);
             if (dlg.ShowDialog() == true)
             {
                 var newName = dlg.NewColumnName;
                 if (string.IsNullOrWhiteSpace(newName)) return;
-                
+
                 // ✅ БЕРЕМО ПОТОЧНИЙ ПОРЯДОК З ТАБЛИЦІ (він вже оновлений через ColumnReordered)
                 var currentOrder = _tableService.GetColumnNames(tableName);
-                
+
                 var result = _tableService.RenameColumn(tableName, oldName, newName);
                 if (!result)
                 {
@@ -360,12 +370,12 @@ namespace DBill.WpfApp
                     // Оновлюємо порядок з новою назвою
                     var newOrder = currentOrder.Select(n => n == oldName ? newName : n).ToList();
                     // _tableService.ReorderColumns(tableName, newOrder);
-                    UpdateRowsGrid(tableName);
+                    BuildTableUI(tableName);
                 }
             }
         }
 
-       private void DgRows_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
+        private void DgRows_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
         {
             UpdateRenameColumnButtonState();
         }
@@ -401,23 +411,23 @@ namespace DBill.WpfApp
                 btnDeleteRow.IsEnabled = false;
                 return;
             }
-            
+
             dgRows.Columns.Clear();
-            
-            var columnNames = dgRows.Columns.Count > 0 
+
+            var columnNames = dgRows.Columns.Count > 0
                 ? dgRows.Columns.OrderBy(c => c.DisplayIndex)
                     .Select(c => c.Header?.ToString()?.Split('(')[0].Trim())
                     .Where(n => !string.IsNullOrWhiteSpace(n))
                     .ToList()
                 : _tableService.GetColumnNames(tableName);
-            
+
             foreach (var colName in columnNames)
             {
                 var column = _tableService.GetColumn(tableName, colName);
                 if (column != null)
                 {
                     var colType = column.Type.ToString();
-                    
+
                     if (column.Type == DataType.TextFile)
                     {
                         // Для файлів - гіперпосилання
@@ -426,7 +436,7 @@ namespace DBill.WpfApp
                             Header = $"{colName} ({colType})",
                             CanUserSort = false
                         };
-                        
+
                         var cellTemplate = new DataTemplate();
                         var factory = new FrameworkElementFactory(typeof(TextBlock));
                         factory.SetValue(TextBlock.ForegroundProperty, System.Windows.Media.Brushes.Blue);
@@ -434,7 +444,7 @@ namespace DBill.WpfApp
                         factory.SetValue(TextBlock.CursorProperty, System.Windows.Input.Cursors.Hand);
                         factory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding($"[{colName}].FileName"));
                         factory.SetValue(TextBlock.MarginProperty, new Thickness(5));
-                        
+
                         factory.AddHandler(TextBlock.MouseLeftButtonUpEvent, new System.Windows.Input.MouseButtonEventHandler((s, e) =>
                         {
                             if (s is TextBlock tb && tb.DataContext is System.Collections.IDictionary row)
@@ -445,7 +455,7 @@ namespace DBill.WpfApp
                                 }
                             }
                         }));
-                        
+
                         cellTemplate.VisualTree = factory;
                         dgCol.CellTemplate = cellTemplate;
                         dgRows.Columns.Add(dgCol);
@@ -462,10 +472,10 @@ namespace DBill.WpfApp
                     }
                 }
             }
-            
+
             var rows = _tableService.GetAllRows(tableName);
             dgRows.ItemsSource = rows;
-            
+
             if (rows.Count == 0)
             {
                 if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Visible;
@@ -474,7 +484,7 @@ namespace DBill.WpfApp
             {
                 if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Collapsed;
             }
-            
+
             if (tbNoTable != null) tbNoTable.Visibility = Visibility.Collapsed;
             btnAddRow.IsEnabled = true;
             btnEditRow.IsEnabled = dgRows.SelectedIndex >= 0;
@@ -509,6 +519,107 @@ namespace DBill.WpfApp
         {
             if (btnEditRow.IsEnabled)
                 BtnEditRow_Click(sender, e);
+        }
+        private void ClearTableUI()
+        {
+            dgRows.Columns.Clear();
+            dgRows.ItemsSource = null;
+            
+            if (tbNoTable != null) 
+                tbNoTable.Visibility = Visibility.Visible;
+            if (tbEmptyTable != null) 
+                tbEmptyTable.Visibility = Visibility.Collapsed;
+                
+            btnAddRow.IsEnabled = false;
+            btnEditRow.IsEnabled = false;
+            btnDeleteRow.IsEnabled = false;
+        }
+
+        // Створює/оновлює UI таблиці з заданою назвою
+        private void BuildTableUI(string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName))
+            {
+                ClearTableUI();
+                return;
+            }
+
+            // Повністю очищаємо перед побудовою
+            dgRows.Columns.Clear();
+            dgRows.ItemsSource = null;
+
+            var columnNames = _tableService.GetColumnNames(tableName);
+            
+            foreach (var colName in columnNames)
+            {
+                var column = _tableService.GetColumn(tableName, colName);
+                if (column != null)
+                {
+                    var colType = column.Type.ToString();
+                    
+                    if (column.Type == DataType.TextFile)
+                    {
+                        // Для файлів - гіперпосилання
+                        var dgCol = new DataGridTemplateColumn
+                        {
+                            Header = $"{colName} ({colType})",
+                            CanUserSort = false
+                        };
+                        
+                        var cellTemplate = new DataTemplate();
+                        var factory = new FrameworkElementFactory(typeof(TextBlock));
+                        factory.SetValue(TextBlock.ForegroundProperty, System.Windows.Media.Brushes.Blue);
+                        factory.SetValue(TextBlock.TextDecorationsProperty, TextDecorations.Underline);
+                        factory.SetValue(TextBlock.CursorProperty, System.Windows.Input.Cursors.Hand);
+                        factory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding($"[{colName}].FileName"));
+                        factory.SetValue(TextBlock.MarginProperty, new Thickness(5));
+                        
+                        factory.AddHandler(TextBlock.MouseLeftButtonUpEvent, new System.Windows.Input.MouseButtonEventHandler((s, e) =>
+                        {
+                            if (s is TextBlock tb && tb.DataContext is System.Collections.IDictionary row)
+                            {
+                                if (row[colName] is FileRecord fileRecord)
+                                {
+                                    OpenFileFromGrid(fileRecord);
+                                }
+                            }
+                        }));
+                        
+                        cellTemplate.VisualTree = factory;
+                        dgCol.CellTemplate = cellTemplate;
+                        dgRows.Columns.Add(dgCol);
+                    }
+                    else
+                    {
+                        var dgCol = new DataGridTextColumn
+                        {
+                            Header = $"{colName} ({colType})",
+                            Binding = new System.Windows.Data.Binding($"[{colName}]"),
+                            CanUserSort = false
+                        };
+                        dgRows.Columns.Add(dgCol);
+                    }
+                }
+            }
+            
+            var rows = _tableService.GetAllRows(tableName);
+            dgRows.ItemsSource = rows;
+            
+            // Оновлюємо стан UI
+            if (rows.Count == 0)
+            {
+                if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                if (tbEmptyTable != null) tbEmptyTable.Visibility = Visibility.Collapsed;
+            }
+            
+            if (tbNoTable != null) tbNoTable.Visibility = Visibility.Collapsed;
+            btnAddRow.IsEnabled = true;
+            btnEditRow.IsEnabled = dgRows.SelectedIndex >= 0;
+            btnDeleteRow.IsEnabled = dgRows.SelectedIndex >= 0;
+            UpdateRenameColumnButtonState();
         }
         }
     }
