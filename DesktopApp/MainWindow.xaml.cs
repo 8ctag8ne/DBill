@@ -155,23 +155,26 @@ namespace DBill.WpfApp
         private async void BtnOpenDb_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "JSON файли (*.json)|*.json|Всі файли|*.*" };
-            if (dlg.ShowDialog() == true)
-            {
-                try
-                {
-                    // Очищаємо файли попередньої бази
-                    await _databaseService.CloseDatabase();
+            if (dlg.ShowDialog() != true) return;
 
-                    await _databaseService.LoadDatabaseAsync(dlg.FileName);
-                    UpdateTablesList();
-                    UpdateCurrentDbName();
-                    UpdateDatabaseButtonsState();
-                    MessageBox.Show("Базу завантажено.");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Помилка: {ex.Message}");
-                }
+            try
+            {
+                // Вся логіка безпечного завантаження всередині DatabaseService
+                await _databaseService.LoadDatabaseAsync(dlg.FileName);
+
+                UpdateTablesList();
+                UpdateCurrentDbName();
+                UpdateDatabaseButtonsState();
+                MessageBox.Show("Базу завантажено.", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Помилка завантаження бази:\n{ex.Message}\n\nПопередня база залишилась відкритою.", 
+                    "Помилка", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error
+                );
             }
         }
 
@@ -199,18 +202,28 @@ namespace DBill.WpfApp
 
         private async void BtnSaveDb_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "JSON файли (*.json)|*.json|Всі файли|*.*" };
-            if (dlg.ShowDialog() == true)
+            if (_databaseService.CurrentDatabase == null)
             {
-                try
-                {
-                    await _databaseService.SaveDatabaseAsync(dlg.FileName);
-                    MessageBox.Show("Базу збережено.");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Помилка: {ex.Message}");
-                }
+                MessageBox.Show("Немає відкритої бази для збереження.", "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "JSON файли (*.json)|*.json|Всі файли|*.*" };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                await _databaseService.SaveDatabaseAsync(dlg.FileName);
+                MessageBox.Show("Базу збережено.", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Помилка збереження бази:\n{ex.Message}\n\nБаза залишилась у пам'яті без змін.", 
+                    "Помилка", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error
+                );
             }
         }
 

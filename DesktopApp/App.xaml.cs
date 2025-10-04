@@ -15,8 +15,10 @@ namespace DBill.WpfApp
             // Ініціалізація сервісів
             var localStorage = new LocalFileStorage();
             var fileService = new FileService(localStorage, "uploads");
+            var tempFileService = new FileService(localStorage, "tempFiles");
             var databaseStorage = new JsonDatabaseStorageService(localStorage, fileService);
-            var databaseService = new DatabaseService(databaseStorage, fileService);
+            var tempDatabaseStorage = new JsonDatabaseStorageService(localStorage, tempFileService);
+            var databaseService = new DatabaseService(databaseStorage, tempDatabaseStorage, fileService);
             var tableService = new TableService(databaseService);
 
             var mainWindow = new MainWindow(databaseService, tableService, fileService);

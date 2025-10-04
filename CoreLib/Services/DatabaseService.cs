@@ -5,14 +5,23 @@ namespace CoreLib.Services
     public class DatabaseService
     {
         private readonly IDatabaseStorageService _storageService;
+        private readonly IDatabaseStorageService _tempStorageService;
         private readonly FileService _fileService;
         private Database? _currentDatabase;
 
-        public Database? CurrentDatabase => _currentDatabase;
+        public Database? CurrentDatabase
+        { 
+            get => _currentDatabase;
+            set => _currentDatabase = value;
+        }
 
-        public DatabaseService(IDatabaseStorageService storageService, FileService fileService)
+        public DatabaseService(
+            IDatabaseStorageService storageService, 
+            IDatabaseStorageService tempStorageService,
+            FileService fileService)
         {
             _storageService = storageService ?? throw new ArgumentNullException(nameof(storageService));
+            _tempStorageService = tempStorageService ?? throw new ArgumentNullException(nameof(tempStorageService));
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         }
 
@@ -25,17 +34,25 @@ namespace CoreLib.Services
             return _currentDatabase;
         }
 
+        /// <summary>
+        /// Безпечно завантажує базу даних. У разі помилки поточна база залишається незмінною.
+        /// </summary>
         public async Task<Database> LoadDatabaseAsync(string filePath)
         {
-            // Десеріалізація з автоматичним збереженням файлів на диск
-            _currentDatabase = await _storageService.LoadDatabaseAsync(filePath);
-            
-            // Зберігаємо файли на диск і очищаємо Content
-            await SaveFileContentsAfterDeserializationAsync();
+            // Завантажуємо в тимчасове сховище
+            var tempDatabase = await _tempStorageService.LoadDatabaseAsync(filePath);
 
-            var validation = _currentDatabase.Validate();
+            // Валідація
+            var validation = tempDatabase.Validate();
             if (!validation.IsValid)
                 throw new InvalidOperationException($"Database validation failed: {string.Join(", ", validation.Errors)}");
+
+            // Зберігаємо файли на диск у тимчасовому контексті
+            await SaveFileContentsForDatabaseAsync(tempDatabase);
+
+            // Якщо все успішно - очищаємо стару базу і копіюємо нову
+            await CloseDatabase();
+            _currentDatabase = tempDatabase;
 
             return _currentDatabase;
         }
@@ -49,8 +66,6 @@ namespace CoreLib.Services
             if (!validation.IsValid)
                 throw new InvalidOperationException($"Cannot save invalid database: {string.Join(", ", validation.Errors)}");
 
-            // Серіалізація з автоматичним завантаженням файлів з диску
-            // Конвертер сам завантажує файли по одному при записі
             await _storageService.SaveDatabaseAsync(_currentDatabase, filePath);
         }
 
@@ -116,11 +131,9 @@ namespace CoreLib.Services
             }
         }
 
-        private async Task SaveFileContentsAfterDeserializationAsync()
+        private async Task SaveFileContentsForDatabaseAsync(Database database)
         {
-            if (_currentDatabase == null) return;
-
-            foreach (var table in _currentDatabase.Tables)
+            foreach (var table in database.Tables)
             {
                 foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
                 {

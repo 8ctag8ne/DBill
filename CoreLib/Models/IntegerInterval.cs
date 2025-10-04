@@ -1,4 +1,4 @@
-using System;
+//CoreLib/Models/IntegerInterval.cs
 using System.Text.Json.Serialization;
 
 namespace CoreLib.Models

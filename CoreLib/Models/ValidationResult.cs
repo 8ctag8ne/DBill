@@ -1,5 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
+//CoreLib/Models/ValidationResult.cs
 
 namespace CoreLib.Models
 {
