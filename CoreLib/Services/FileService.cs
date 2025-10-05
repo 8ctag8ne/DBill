@@ -24,7 +24,10 @@ namespace CoreLib.Services
             var newName = $"{fileId}_{fileName}";
             var filePath = Path.Combine(_uploadsDirectory, newName);
 
-            await _fileStorage.CreateDirectoryAsync(_uploadsDirectory);
+            if (!await _fileStorage.ExistsAsync(_uploadsDirectory))
+            {
+                await _fileStorage.CreateDirectoryAsync(_uploadsDirectory);
+            }
             await _fileStorage.WriteAllBytesAsync(filePath, content);
 
             return filePath;

@@ -32,7 +32,7 @@ namespace CoreLib.Models
             {
                 Values.Add(null);
             }
-            
+
             Values[rowIndex] = value;
         }
 
@@ -66,6 +66,16 @@ namespace CoreLib.Models
         {
             var result = new ValidationResult();
 
+            if (Type == DataType.TextFile && value is FileRecord fileRecord)
+            {
+                if (string.IsNullOrWhiteSpace(fileRecord.StoragePath) && 
+                (fileRecord.Content == null || fileRecord.Content.Length == 0))
+                {
+                    result.AddError($"You should select a file for column '{Name}'");
+                    return result;
+                }
+            }
+
             if (value == null)
                 return result; // Null is generally allowed
 
@@ -78,7 +88,7 @@ namespace CoreLib.Models
                     break;
 
                 case DataType.Real:
-                    if (value is not double && value is not float && 
+                    if (value is not double && value is not float &&
                         !double.TryParse(value.ToString(), out _))
                         result.AddError($"Column '{Name}' must be a real number");
                     break;
@@ -101,19 +111,66 @@ namespace CoreLib.Models
                 case DataType.IntegerInterval:
                     if (value is not IntegerInterval)
                     {
-                        try
-                        {
-                            IntegerInterval.Parse(value.ToString() ?? string.Empty);
-                        }
-                        catch
-                        {
-                            result.AddError($"Column '{Name}' must be a valid integer interval");
-                        }
+                        result.AddError($"Column '{Name}' must be a valid integer interval");
+                    }
+                    else
+                    {
+                        var interval = (IntegerInterval)value;
                     }
                     break;
             }
 
             return result;
         }
+        
+        // public (object? Value, string Error) ParseValueFromString(string input)
+        // {
+        //     if (string.IsNullOrWhiteSpace(input))
+        //         return (null, "Value cannot be null or empty");
+
+        //     try
+        //         {
+        //             switch (Type)
+        //             {
+        //                 case DataType.Integer:
+        //                     if (int.TryParse(input, out int intValue))
+        //                         return (intValue, null);
+        //                     else
+        //                         return (null, $"Incorrect integer number: {input}");
+
+        //                 case DataType.Real:
+        //                     if (double.TryParse(input, out double realValue))
+        //                         return (realValue, null);
+        //                     else
+        //                         return (null, $"Incorrect real number: {input}");
+
+        //                 case DataType.Char:
+        //                     if (input.Length == 1)
+        //                         return (input[0], null);
+        //                     else
+        //                         return (null, $"Should be a single character: {input}");
+
+        //                 case DataType.String:
+        //                     return (input, null);
+
+        //                 case DataType.IntegerInterval:
+        //                     // Логіка парсингу інтервалу
+        //                     var parts = input.Split('-');
+        //                     if (parts.Length == 2 &&
+        //                         int.TryParse(parts[0], out int min) &&
+        //                         int.TryParse(parts[1], out int max))
+        //                         return (new IntegerInterval(min, max), null);
+        //                     else
+        //                         return (null, $"Incorrect integer interval: {input}");
+
+        //                 default:
+        //                     return (input, null);
+        //             }
+        //         }
+        //         catch (Exception ex)
+        //         {
+        //             return (null, $"Parsing error: {ex.Message}");
+        //         }
+        // }
     }
 }

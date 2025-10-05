@@ -7,22 +7,25 @@ namespace CoreLib.Services
         private readonly IDatabaseStorageService _storageService;
         private readonly IDatabaseStorageService _tempStorageService;
         private readonly FileService _fileService;
+        private readonly FileService _tempFileService;
         private Database? _currentDatabase;
 
-        public Database? CurrentDatabase
+        public Database? CurrentDatabase 
         { 
             get => _currentDatabase;
             set => _currentDatabase = value;
         }
 
         public DatabaseService(
-            IDatabaseStorageService storageService, 
+            IDatabaseStorageService storageService,
             IDatabaseStorageService tempStorageService,
-            FileService fileService)
+            FileService fileService,
+            FileService tempFileService)
         {
             _storageService = storageService ?? throw new ArgumentNullException(nameof(storageService));
             _tempStorageService = tempStorageService ?? throw new ArgumentNullException(nameof(tempStorageService));
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
+            _tempFileService = tempFileService ?? throw new ArgumentNullException(nameof(tempFileService));
         }
 
         public Database CreateDatabase(string name)
@@ -45,13 +48,24 @@ namespace CoreLib.Services
             // Валідація
             var validation = tempDatabase.Validate();
             if (!validation.IsValid)
+            {
+                // Очищаємо тимчасові файли
+                await _tempFileService.CleanupAllFilesAsync();
                 throw new InvalidOperationException($"Database validation failed: {string.Join(", ", validation.Errors)}");
+            }
 
-            // Зберігаємо файли на диск у тимчасовому контексті
-            await SaveFileContentsForDatabaseAsync(tempDatabase);
+            // Зберігаємо файли на диск у тимчасову папку
+            await SaveFileContentsForDatabaseAsync(tempDatabase, _tempFileService);
 
-            // Якщо все успішно - очищаємо стару базу і копіюємо нову
+            // Якщо все успішно - очищаємо стару базу і підміняємо на нову
             await CloseDatabase();
+
+            // Копіюємо файли з тимчасової папки в основну
+            await CopyFilesFromTempToMainAsync(tempDatabase);
+
+            // Очищаємо тимчасові файли
+            await _tempFileService.CleanupAllFilesAsync();
+
             _currentDatabase = tempDatabase;
 
             return _currentDatabase;
@@ -131,31 +145,74 @@ namespace CoreLib.Services
             }
         }
 
-        private async Task SaveFileContentsForDatabaseAsync(Database database)
+        /// <summary>
+        /// Зберігає вміст файлів з Content в FileRecord на диск через вказаний FileService
+        /// </summary>
+        private async Task SaveFileContentsForDatabaseAsync(Database database, FileService targetFileService)
         {
             foreach (var table in database.Tables)
             {
                 foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
                 {
-                    var rows = table.GetAllRows();
-                    for (int i = 0; i < rows.Count; i++)
+                    for (int i = 0; i < column.Values.Count; i++)
                     {
-                        if (rows[i][column.Name] is FileRecord fileRecord && 
+                        if (column.Values[i] is FileRecord fileRecord &&
                             fileRecord.Content != null && fileRecord.Content.Length > 0)
                         {
+                            var currentRecord = fileRecord; // захоплюємо поточний запис
                             try
                             {
-                                var storagePath = await _fileService.SaveFileAsync(
-                                    fileRecord.Content, 
-                                    fileRecord.FileName);
-                                
-                                fileRecord.StoragePath = storagePath;
-                                fileRecord.Content = null;
+                                var storagePath = await targetFileService.SaveFileAsync(
+                                    currentRecord.Content,
+                                    currentRecord.FileName);
+
+                                // Безпосередньо оновлюємо об'єкт в колекції
+                                currentRecord.StoragePath = storagePath;
+                                currentRecord.Content = null;
                             }
                             catch (Exception ex)
                             {
                                 throw new InvalidOperationException(
-                                    $"Failed to save file content: {fileRecord.FileName}", ex);
+                                    $"Failed to save file content: {currentRecord.FileName}", ex);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Копіює файли з тимчасового сховища в основне і оновлює шляхи
+        /// </summary>
+        private async Task CopyFilesFromTempToMainAsync(Database database)
+        {
+            foreach (var table in database.Tables)
+            {
+                foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
+                {
+                    for (int i = 0; i < column.Values.Count; i++)
+                    {
+                        if (column.Values[i] is FileRecord fileRecord && 
+                            !string.IsNullOrWhiteSpace(fileRecord.StoragePath))
+                        {
+                            var currentRecord = fileRecord;
+                            try
+                            {
+                                // Завантажуємо файл з тимчасового сховища
+                                var content = await _tempFileService.LoadFileAsync(currentRecord.StoragePath);
+                                
+                                // Зберігаємо в основне сховище
+                                var newStoragePath = await _fileService.SaveFileAsync(
+                                    content, 
+                                    currentRecord.FileName);
+                                
+                                // Безпосередньо оновлюємо об'єкт в колекції
+                                currentRecord.StoragePath = newStoragePath;
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Failed to copy file from temp to main storage: {currentRecord.FileName}", ex);
                             }
                         }
                     }
@@ -167,10 +224,9 @@ namespace CoreLib.Services
         {
             foreach (var column in table.Columns.Where(c => c.Type == DataType.TextFile))
             {
-                var rows = table.GetAllRows();
-                foreach (var row in rows)
+                foreach (var element in column.Values)
                 {
-                    if (row[column.Name] is FileRecord fileRecord && 
+                    if (element is FileRecord fileRecord && 
                         !string.IsNullOrWhiteSpace(fileRecord.StoragePath))
                     {
                         try

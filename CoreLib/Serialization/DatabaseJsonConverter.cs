@@ -1,4 +1,4 @@
-// Конвертер для Database (щоб правильно обробляти Column.Values)
+//CoreLib/Serialization/DatabaseJsonConverter.cs
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CoreLib.Models;
