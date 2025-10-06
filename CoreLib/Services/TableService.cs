@@ -318,9 +318,11 @@ namespace CoreLib.Services
                     validation.AddError($"Error parsing value for column '{column.Name}': {ex.Message}");
                 }
             }
-
-            var rowValidation = table.ValidateRow(values);
-            validation.Merge(rowValidation);
+            if (validation.IsValid)
+            {
+                var rowValidation = table.ValidateRow(values);
+                validation.Merge(rowValidation);
+            }
 
             return (values, validation);
         }

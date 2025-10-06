@@ -135,7 +135,7 @@ namespace DBill.WpfApp
 
             // Очищаємо файли попередньої бази
             await _databaseService.CloseDatabase();
-            
+
             _databaseService.CreateDatabase(name);
             ClearTableUI();
             UpdateTablesList();
@@ -151,16 +151,16 @@ namespace DBill.WpfApp
 
             try
             {
-                
+
                 // ОЧИЩАЄМО UI ПЕРЕД ЗАВАНТАЖЕННЯМ
                 ClearTableUI();
-                
+
                 await _databaseService.LoadDatabaseAsync(dlg.FileName);
 
                 UpdateTablesList();
                 UpdateCurrentDbName();
                 UpdateDatabaseButtonsState();
-                
+
                 // ЯКЩО Є ТАБЛИЦІ - БУДУЄМО UI ПЕРШОЇ ТАБЛИЦІ
                 if (lstTables.Items.Count > 0 && lstTables.SelectedItem is string firstTable)
                 {
@@ -170,6 +170,10 @@ namespace DBill.WpfApp
             }
             catch (Exception ex)
             {
+                if (lstTables.Items.Count > 0 && lstTables.SelectedItem is string firstTable)
+                {
+                    BuildTableUI(firstTable);
+                }
                 MessageBox.Show(
                     $"Error loading database:\n{ex.Message}\n\n.",
                     "Error",
