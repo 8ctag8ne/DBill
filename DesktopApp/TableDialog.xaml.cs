@@ -41,6 +41,13 @@ namespace DBill.WpfApp
                 return;
             }
 
+            var validation = _tableService.ValidateColumnName(name);
+            if (!validation.IsValid)
+            {
+                ShowError(string.Join("\n", validation.Errors));
+                return;
+            }
+
             var typeStr = (cbColumnType.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "string";
             DataType type = typeStr.ToLower() switch
             {
@@ -53,10 +60,17 @@ namespace DBill.WpfApp
                 _ => DataType.String
             };
 
-            Columns.Add(new Column(name, type));
-            RefreshColumnsList();
-            tbColumnName.Clear();
-            ClearError();
+            try
+            {
+                Columns.Add(new Column(name, type));
+                RefreshColumnsList();
+                tbColumnName.Clear();
+                ClearError();
+            }
+            catch (ArgumentException ex)
+            {
+                ShowError(ex.Message);
+            }
         }
 
         private void BtnDeleteColumn_Click(object sender, RoutedEventArgs e)

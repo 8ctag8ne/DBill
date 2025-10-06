@@ -1,7 +1,6 @@
-﻿using NUnit.Framework;
+﻿// Tests/TableOperationstests.cs
 using CoreLib.Models;
 using CoreLib.Services;
-using System.Collections.Generic;
 
 namespace CoreLib.Tests
 {

@@ -1,3 +1,4 @@
+//DesktopApp/App.xaml.cs
 using CoreLib.Services;
 using System.Windows;
 

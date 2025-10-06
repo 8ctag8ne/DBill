@@ -1,15 +1,32 @@
-//CoreLib/Models/Column.cs
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace CoreLib.Models
 {
     public class Column
     {
-        public string Name { get; set; } = string.Empty;
+        private string _name = string.Empty;
+
+        public string Name 
+        { 
+            get => _name;
+            set
+            {
+                if (!IsValidColumnName(value))
+                {
+                    throw new ArgumentException(
+                        "Column name can only contain letters, numbers, and underscores, " +
+                        "cannot contain spaces or special characters, and cannot be empty.");
+                }
+                _name = value;
+            }
+        }
+        
         public DataType Type { get; set; }
         public List<object?> Values { get; set; } = new List<object?>();
+        public bool IsRequired { get; set; } = true;
 
         [JsonConstructor]
         public Column() { }
@@ -18,6 +35,46 @@ namespace CoreLib.Models
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Type = type;
+        }
+
+        /// <summary>
+        /// Validates if a column name is safe for WPF usage
+        /// </summary>
+        public static bool IsValidColumnName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return false;
+
+            // Allow only letters, numbers, and underscores
+            // No spaces, no special characters that could cause WPF issues
+            return Regex.IsMatch(name, @"^[a-zA-Z_][a-zA-Z0-9_]*$");
+        }
+
+        /// <summary>
+        /// Sanitizes a column name for safe WPF usage
+        /// Replaces invalid characters with underscores
+        /// </summary>
+        public static string SanitizeColumnName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "Column";
+
+            // Replace spaces and special characters with underscores
+            string sanitized = Regex.Replace(name, @"[^a-zA-Z0-9_]", "_");
+            
+            // Ensure it starts with a letter or underscore
+            if (!Regex.IsMatch(sanitized, @"^[a-zA-Z_]"))
+            {
+                sanitized = "_" + sanitized;
+            }
+
+            // Ensure it's not empty after sanitization
+            if (string.IsNullOrWhiteSpace(sanitized))
+            {
+                sanitized = "Column";
+            }
+
+            return sanitized;
         }
 
         public object? GetValue(int rowIndex)
@@ -66,10 +123,16 @@ namespace CoreLib.Models
         {
             var result = new ValidationResult();
 
+            if (IsRequired && value == null)
+            {
+                result.AddError($"Column '{Name}' is required and cannot be null");
+                return result;
+            }
+
             if (Type == DataType.TextFile && value is FileRecord fileRecord)
             {
-                if (string.IsNullOrWhiteSpace(fileRecord.StoragePath) && 
-                (fileRecord.Content == null || fileRecord.Content.Length == 0))
+                if (IsRequired && string.IsNullOrWhiteSpace(fileRecord.StoragePath) && 
+                    (fileRecord.Content == null || fileRecord.Content.Length == 0))
                 {
                     result.AddError($"You should select a file for column '{Name}'");
                     return result;
@@ -116,6 +179,10 @@ namespace CoreLib.Models
                     else
                     {
                         var interval = (IntegerInterval)value;
+                        if (interval.Min > interval.Max)
+                        {
+                            result.AddError($"Column '{Name}': Min value cannot be greater than Max value");
+                        }
                     }
                     break;
             }

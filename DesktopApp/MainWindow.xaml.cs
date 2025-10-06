@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
-using DataGrid = System.Windows.Controls.DataGrid;
 
 namespace DBill.WpfApp
 {
@@ -40,10 +39,8 @@ namespace DBill.WpfApp
         }
         private void DgRows_HeaderClick(object sender, RoutedEventArgs e)
         {
-            // MessageBox.Show("HeaderClick event triggered");
             if (e.OriginalSource is DataGridColumnHeader header && header.Column != null)
             {
-                // MessageBox.Show($"Column header clicked: {header.Column.Header}");
                 dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items.Count > 0 ? dgRows.Items[0] : null, header.Column);
                 UpdateRenameColumnButtonState();
             }
@@ -73,7 +70,6 @@ namespace DBill.WpfApp
             // Додаємо прямий обробник кліку на хедер
             dgRows.LoadingRow += (s, e) =>
             {
-                // MessageBox.Show($"Loading row {e.Row.GetIndex()}");
                 if (e.Row.Header is DataGridRowHeader header)
                 {
                     header.Click += DgRows_HeaderClick;
@@ -91,7 +87,6 @@ namespace DBill.WpfApp
 
                 if (originalSource is DataGridColumnHeader columnHeader)
                 {
-                    // MessageBox.Show($"Column header clicked via PreviewMouseLeftButtonUp: {columnHeader.Column.Header}");
                     dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items.Count > 0 ? dgRows.Items[0] : null, columnHeader.Column);
                     UpdateRenameColumnButtonState();
                 }
@@ -134,12 +129,13 @@ namespace DBill.WpfApp
 
         private async void BtnCreateDb_Click(object sender, RoutedEventArgs e)
         {
-            // Очищаємо файли попередньої бази
-            await _databaseService.CloseDatabase();
 
-            var name = Microsoft.VisualBasic.Interaction.InputBox("Введіть назву бази:", "Створення бази");
+            var name = Microsoft.VisualBasic.Interaction.InputBox("Enter Database name:", "DB creation ");
             if (string.IsNullOrWhiteSpace(name)) return;
 
+            // Очищаємо файли попередньої бази
+            await _databaseService.CloseDatabase();
+            
             _databaseService.CreateDatabase(name);
             ClearTableUI();
             UpdateTablesList();
@@ -187,7 +183,6 @@ namespace DBill.WpfApp
         {
             if (lstTables.SelectedItem is not string tableName)
             {
-                // MessageBox.Show("UpdateRenameColumnButtonState: No table selected");
                 btnRenameColumn.IsEnabled = false;
                 return;
             }
@@ -195,13 +190,11 @@ namespace DBill.WpfApp
             var currentCell = dgRows.CurrentCell;
             if (currentCell.Column == null)
             {
-                // MessageBox.Show("UpdateRenameColumnButtonState: No column selected");
                 btnRenameColumn.IsEnabled = false;
                 return;
             }
 
             var columns = _tableService.GetColumnNames(tableName);
-            // MessageBox.Show($"UpdateRenameColumnButtonState: Table: {tableName}, Column: {currentCell.Column.Header}, Columns count: {columns.Count}");
             btnRenameColumn.IsEnabled = columns.Count > 0;
         }
 
@@ -239,7 +232,7 @@ namespace DBill.WpfApp
             {
                 var tableName = dlg.TableName;
                 var columns = dlg.Columns;
-                
+
                 try
                 {
                     _tableService.CreateTable(tableName, columns);
@@ -345,16 +338,17 @@ namespace DBill.WpfApp
                 // ✅ БЕРЕМО ПОТОЧНИЙ ПОРЯДОК З ТАБЛИЦІ (він вже оновлений через ColumnReordered)
                 var currentOrder = _tableService.GetColumnNames(tableName);
 
-                var result = _tableService.RenameColumn(tableName, oldName, newName);
-                if (!result)
+                var (success, error) = _tableService.TryRenameColumn(tableName, oldName, newName);
+        
+                if (!success)
                 {
-                    MessageBox.Show("Column renaming failed.");
+                    MessageBox.Show($"Error renaming column: {error}", 
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
                 else
                 {
                     // Оновлюємо порядок з новою назвою
                     var newOrder = currentOrder.Select(n => n == oldName ? newName : n).ToList();
-                    // _tableService.ReorderColumns(tableName, newOrder);
                     BuildTableUI(tableName);
                 }
             }
@@ -407,8 +401,34 @@ namespace DBill.WpfApp
 
         private void dgRows_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (btnEditRow.IsEnabled)
+            // Отримуємо елемент, по якому клікнули
+            var originalSource = e.OriginalSource as FrameworkElement;
+            
+            // Шукаємо DataGridRow серед батьківських елементів
+            DataGridRow row = FindParent<DataGridRow>(originalSource);
+            
+            if (row != null)
+            {
+                // Встановлюємо вибраний рядок
+                dgRows.SelectedItem = row.DataContext;
+                
+                // Викликаємо редагування
                 BtnEditRow_Click(sender, e);
+            }
+        }
+
+        // Допоміжний метод для пошуку батьківського елемента певного типу
+        private static T FindParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            
+            if (parentObject == null) 
+                return null;
+            
+            if (parentObject is T parent)
+                return parent;
+            
+            return FindParent<T>(parentObject);
         }
         private void ClearTableUI()
         {

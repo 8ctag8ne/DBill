@@ -40,7 +40,7 @@
             <Border Grid.Row="0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Background="#FAFAFA">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <Grid>
-                        <DataGrid Name="dgRows" AutoGenerateColumns="False" Margin="0" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserSortColumns="False" CanUserReorderColumns="True"/>
+                        <DataGrid Name="dgRows" AutoGenerateColumns="False" Margin="0" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserSortColumns="False" CanUserReorderColumns="True" MouseDoubleClick="dgRows_MouseDoubleClick"/>
                         <TextBlock Name="tbNoTable" Text="Select a table to view its contents" 
                                    Foreground="#888" FontSize="16" FontStyle="Italic" 
                                    HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>

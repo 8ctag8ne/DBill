@@ -1,3 +1,4 @@
+// CoreLib/Services/TableService.cs
 using CoreLib.Models;
 
 namespace CoreLib.Services
@@ -20,6 +21,9 @@ namespace CoreLib.Services
         {
             if (string.IsNullOrWhiteSpace(tableName))
                 throw new ArgumentException("Table name cannot be null or empty", nameof(tableName));
+
+            if (tableName.Contains(' ') || tableName.Contains(',') || tableName.Contains(';') || tableName.Contains(':'))
+                throw new ArgumentException("Table name cannot contains symbols like ' ', ',', ';', ':'", nameof(tableName));
 
             if (columns == null || !columns.Any())
                 throw new ArgumentException("Table must have at least one column", nameof(columns));
@@ -164,23 +168,37 @@ namespace CoreLib.Services
         public ValidationResult ValidateTableCreation(string tableName, List<Column> columns)
         {
             var result = new ValidationResult();
-
+            
             if (string.IsNullOrWhiteSpace(tableName))
-                result.AddError("Table name is required");
-
+                result.AddError("Column name cannot be null or empty");
+            
             if (columns == null || columns.Count == 0)
-                result.AddError("Table should have at least one column");
-
+                result.AddError("Column should contain at least one column");
+            
+            // Перевірка валідності імен колонок
+            foreach (var column in columns)
+            {
+                try
+                {
+                    // Це викличе виняток, якщо ім'я невалідне
+                    var testColumn = new Column(column.Name, column.Type);
+                }
+                catch (ArgumentException ex)
+                {
+                    result.AddError($"Incorrect column name '{column.Name}': {ex.Message}");
+                }
+            }
+            
             // Перевірка унікальності назв колонок
             var duplicateColumns = columns
                 .GroupBy(c => c.Name.ToLower())
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key)
                 .ToList();
-
+                
             if (duplicateColumns.Any())
                 result.AddError($"Duplicate column names found: {string.Join(", ", duplicateColumns)}");
-
+            
             return result;
         }
 
@@ -202,6 +220,48 @@ namespace CoreLib.Services
             }
 
             return table.ValidateRow(rowData);
+        }
+
+        public ValidationResult ValidateColumnName(string columnName)
+        {
+            var result = new ValidationResult();
+            
+            try
+            {
+                var testColumn = new Column(columnName, DataType.String); // Тип не має значення для валідації імені
+            }
+            catch (ArgumentException ex)
+            {
+                result.AddError(ex.Message);
+            }
+            
+            return result;
+        }
+
+        public (bool Success, string Error) TryRenameColumn(string tableName, string oldName, string newName)
+        {
+            try
+            {
+                var table = GetTable(tableName);
+                if (table == null)
+                    return (false, $"Table '{tableName}' not found");
+
+                // Спочатку перевіряємо нове ім'я
+                var nameValidation = ValidateColumnName(newName);
+                if (!nameValidation.IsValid)
+                    return (false, string.Join(", ", nameValidation.Errors));
+
+                // Потім виконуємо перейменування
+                var result = table.RenameColumn(oldName, newName);
+                if (!result)
+                    return (false, "Couldn't rename the column.");
+
+                return (true, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Renaming column failed: {ex.Message}");
+            }
         }
 
         public (Dictionary<string, object?> Values, ValidationResult Validation) ParseAndValidateRowData(
