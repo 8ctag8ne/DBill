@@ -1,7 +1,7 @@
 <Window x:Class="DBill.WpfApp.RowDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Додати/Редагувати рядок" Height="400" Width="500" WindowStartupLocation="CenterOwner">
+        Title="Add/Edit row" Height="400" Width="500" WindowStartupLocation="CenterOwner">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -14,7 +14,7 @@
         </ScrollViewer>
         <DockPanel LastChildFill="False" VerticalAlignment="Bottom" Margin="0,0,0,10" Grid.Row="1">
             <Button Content="OK" Width="80" Margin="10,0,0,0" Name="btnOk" DockPanel.Dock="Right" Click="btnOk_Click"/>
-            <Button Content="Скасувати" Width="80" Name="btnCancel" DockPanel.Dock="Right" Click="btnCancel_Click"/>
+            <Button Content="Cancel" Width="80" Name="btnCancel" DockPanel.Dock="Right" Click="btnCancel_Click"/>
         </DockPanel>
     </Grid>
 </Window>

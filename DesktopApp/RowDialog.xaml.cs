@@ -50,7 +50,7 @@ namespace DBill.WpfApp
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}");
+                MessageBox.Show($"Error opening the file: {ex.Message}");
             }
         }
 
@@ -75,10 +75,10 @@ namespace DBill.WpfApp
                 {
                     // Інтервал: два TextBox для Min і Max
                     var innerPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                    innerPanel.Children.Add(new TextBlock { Text = "Від:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
+                    innerPanel.Children.Add(new TextBlock { Text = "From:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
                     var tbMin = new TextBox { Name = "tbMin_" + colName, Width = 60, Margin = new Thickness(0, 0, 10, 0) };
                     innerPanel.Children.Add(tbMin);
-                    innerPanel.Children.Add(new TextBlock { Text = "До:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
+                    innerPanel.Children.Add(new TextBlock { Text = "To:", Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
                     var tbMax = new TextBox { Name = "tbMax_" + colName, Width = 60 };
                     innerPanel.Children.Add(tbMax);
 
@@ -93,12 +93,12 @@ namespace DBill.WpfApp
                 {
                     // Файл: кнопка вибору + назва файлу
                     var innerPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                    var btnSelect = new Button { Content = "Вибрати файл...", Width = 120, Margin = new Thickness(0, 0, 10, 0) };
+                    var btnSelect = new Button { Content = " Select file...", Width = 120, Margin = new Thickness(0, 0, 10, 0) };
                     var tbFileName = new TextBlock
                     {
                         Name = "tbFileName_" + colName,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Text = "(файл не вибрано)",
+                        Text = "(file not selected)",
                         Foreground = System.Windows.Media.Brushes.Gray
                     };
 
@@ -136,7 +136,7 @@ namespace DBill.WpfApp
                             }
                             catch (Exception ex)
                             {
-                                MessageBox.Show($"Помилка завантаження файлу: {ex.Message}");
+                                MessageBox.Show($"Error loading the file: {ex.Message}");
                             }
                         }
                     };
@@ -236,7 +236,7 @@ namespace DBill.WpfApp
 
         private void ShowError(string message)
         {
-            MessageBox.Show(message, "Помилка валідації", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(message, "Validation error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         private T? FindControl<T>(string name) where T : FrameworkElement

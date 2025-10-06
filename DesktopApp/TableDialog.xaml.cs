@@ -31,13 +31,13 @@ namespace DBill.WpfApp
             var name = tbColumnName.Text.Trim();
             if (string.IsNullOrWhiteSpace(name)) 
             {
-                ShowError("Введіть назву колонки");
+                ShowError("Enter a column name");
                 return;
             }
 
             if (Columns.Any(c => c.Name.Equals(name, System.StringComparison.OrdinalIgnoreCase)))
             {
-                ShowError("Колонка з такою назвою вже існує");
+                ShowError("Column with this name already exists");
                 return;
             }
 
@@ -98,7 +98,7 @@ namespace DBill.WpfApp
         private void ShowError(string message)
         {
             // Можна додати спеціальний контрол для відображення помилок
-            MessageBox.Show(message, "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         private void ClearError()

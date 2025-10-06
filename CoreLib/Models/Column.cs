@@ -122,55 +122,5 @@ namespace CoreLib.Models
 
             return result;
         }
-        
-        // public (object? Value, string Error) ParseValueFromString(string input)
-        // {
-        //     if (string.IsNullOrWhiteSpace(input))
-        //         return (null, "Value cannot be null or empty");
-
-        //     try
-        //         {
-        //             switch (Type)
-        //             {
-        //                 case DataType.Integer:
-        //                     if (int.TryParse(input, out int intValue))
-        //                         return (intValue, null);
-        //                     else
-        //                         return (null, $"Incorrect integer number: {input}");
-
-        //                 case DataType.Real:
-        //                     if (double.TryParse(input, out double realValue))
-        //                         return (realValue, null);
-        //                     else
-        //                         return (null, $"Incorrect real number: {input}");
-
-        //                 case DataType.Char:
-        //                     if (input.Length == 1)
-        //                         return (input[0], null);
-        //                     else
-        //                         return (null, $"Should be a single character: {input}");
-
-        //                 case DataType.String:
-        //                     return (input, null);
-
-        //                 case DataType.IntegerInterval:
-        //                     // Логіка парсингу інтервалу
-        //                     var parts = input.Split('-');
-        //                     if (parts.Length == 2 &&
-        //                         int.TryParse(parts[0], out int min) &&
-        //                         int.TryParse(parts[1], out int max))
-        //                         return (new IntegerInterval(min, max), null);
-        //                     else
-        //                         return (null, $"Incorrect integer interval: {input}");
-
-        //                 default:
-        //                     return (input, null);
-        //             }
-        //         }
-        //         catch (Exception ex)
-        //         {
-        //             return (null, $"Parsing error: {ex.Message}");
-        //         }
-        // }
     }
 }

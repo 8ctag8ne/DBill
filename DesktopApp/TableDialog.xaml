@@ -1,7 +1,7 @@
 <Window x:Class="DBill.WpfApp.TableDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Створення/Редагування таблиці" Height="400" Width="500" WindowStartupLocation="CenterOwner">
+        Title="Add/Edit table" Height="400" Width="500" WindowStartupLocation="CenterOwner">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -10,11 +10,11 @@
         </Grid.RowDefinitions>
         <Border Grid.Row="0" Background="#F5F5F5" Padding="8" CornerRadius="4" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Назва таблиці:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <TextBlock Text="Table name:" VerticalAlignment="Center" FontWeight="SemiBold"/>
                 <TextBox x:Name="tbTableName" Width="200" Margin="10,0,0,0" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
-        <GroupBox Header="Колонки" Grid.Row="1">
+        <GroupBox Header="Columns" Grid.Row="1">
             <StackPanel>
                 <ListBox x:Name="lbColumns" DisplayMemberPath="Display" Height="200"/>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Left">
@@ -27,14 +27,14 @@
                         <ComboBoxItem Content="integerInvl"/>
                         <ComboBoxItem Content="file"/>
                     </ComboBox>
-                    <Button Content="Додати" Width="70" Margin="10,0,0,0" Click="BtnAddColumn_Click" VerticalAlignment="Center"/>
-                    <Button Content="Видалити" Width="70" Margin="10,0,0,0" Click="BtnDeleteColumn_Click" VerticalAlignment="Center"/>
+                    <Button Content="Add" Width="70" Margin="10,0,0,0" Click="BtnAddColumn_Click" VerticalAlignment="Center"/>
+                    <Button Content="Delete" Width="70" Margin="10,0,0,0" Click="BtnDeleteColumn_Click" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
         <StackPanel Orientation="Horizontal" Grid.Row="2" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button Content="OK" Width="80" Margin="0,0,10,0" Click="BtnOk_Click"/>
-            <Button Content="Скасувати" Width="80" Click="BtnCancel_Click"/>
+            <Button Content="Cancel" Width="80" Click="BtnCancel_Click"/>
         </StackPanel>
     </Grid>
 </Window>

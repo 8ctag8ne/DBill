@@ -47,10 +47,6 @@ namespace DBill.WpfApp
                 dgRows.CurrentCell = new DataGridCellInfo(dgRows.Items.Count > 0 ? dgRows.Items[0] : null, header.Column);
                 UpdateRenameColumnButtonState();
             }
-            else
-            {
-                // MessageBox.Show("Clicked, but not on column header");
-            }
         }
 
         private void UpdateDatabaseButtonsState()
@@ -149,7 +145,7 @@ namespace DBill.WpfApp
             UpdateTablesList();
             UpdateCurrentDbName();
             UpdateDatabaseButtonsState();
-            MessageBox.Show($"Базу '{name}' створено.");
+            MessageBox.Show($"Database '{name}' has been created.");
         }
 
         private async void BtnOpenDb_Click(object sender, RoutedEventArgs e)
@@ -174,13 +170,13 @@ namespace DBill.WpfApp
                 {
                     BuildTableUI(firstTable);
                 }
-                MessageBox.Show("Базу завантажено.", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Database loaded.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка завантаження бази:\n{ex.Message}\n\nПопередня база залишилась відкритою.",
-                    "Помилка",
+                    $"Error loading database:\n{ex.Message}\n\n.",
+                    "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
@@ -213,7 +209,7 @@ namespace DBill.WpfApp
         {
             if (_databaseService.CurrentDatabase == null)
             {
-                MessageBox.Show("Немає відкритої бази для збереження.", "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("No database opened for saving.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -223,13 +219,13 @@ namespace DBill.WpfApp
             try
             {
                 await _databaseService.SaveDatabaseAsync(dlg.FileName);
-                MessageBox.Show("Базу збережено.", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Database saved.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка збереження бази:\n{ex.Message}\n\nБаза залишилась у пам'яті без змін.",
-                    "Помилка",
+                    $"Error saving database:\n{ex.Message}\n\nDatabase remains in memory.",
+                    "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error
                 );
@@ -248,11 +244,11 @@ namespace DBill.WpfApp
                 {
                     _tableService.CreateTable(tableName, columns);
                     UpdateTablesList();
-                    MessageBox.Show($"Таблицю '{tableName}' створено.");
+                    MessageBox.Show($"Table '{tableName}' has been created.");
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Помилка створення таблиці: {ex.Message}");
+                    MessageBox.Show($"Error creating table: {ex.Message}");
                 }
             }
         }
@@ -261,7 +257,7 @@ namespace DBill.WpfApp
         {
             if (lstTables.SelectedItem is string tableName)
             {
-                if (MessageBox.Show($"Видалити таблицю '{tableName}'?", "Підтвердження", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                if (MessageBox.Show($"Delete table '{tableName}'?", "Confirmation", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
                 {
                     _tableService.DeleteTable(tableName);
                     UpdateTablesList();
@@ -352,7 +348,7 @@ namespace DBill.WpfApp
                 var result = _tableService.RenameColumn(tableName, oldName, newName);
                 if (!result)
                 {
-                    MessageBox.Show("Не вдалося перейменувати колонку.");
+                    MessageBox.Show("Column renaming failed.");
                 }
                 else
                 {
@@ -383,7 +379,7 @@ namespace DBill.WpfApp
         {
             if (tbCurrentDbName == null) return;
             var db = _databaseService.CurrentDatabase;
-            tbCurrentDbName.Text = db != null ? $"База: {db.Name}" : "(База не вибрана)";
+            tbCurrentDbName.Text = db != null ? $"Database: {db.Name}" : "(Database isn't selected)";
         }
 
         private void OpenFileFromGrid(FileRecord fileRecord)
@@ -399,7 +395,7 @@ namespace DBill.WpfApp
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Помилка відкриття файлу: {ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error opening file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
