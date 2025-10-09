@@ -1,20 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
 using CoreLib.Services;
 using CoreLib.Models;
+using System.Text.Json;
 
 namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class TableController : ControllerBase
+    public class TableController : BaseApiController
     {
-        private readonly TableService _tableService;
         private readonly FileService _fileService;
         private readonly ILogger<TableController> _logger;
 
-        public TableController(TableService tableService, FileService fileService, ILogger<TableController> logger)
+        public TableController(ISessionService sessionService, FileService fileService, ILogger<TableController> logger) : base(sessionService)
         {
-            _tableService = tableService;
             _fileService = fileService;
             _logger = logger;
         }
@@ -27,7 +26,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var table = _tableService.GetTable(tableName);
+                var table = TableService.GetTable(tableName);
                 if (table == null)
                     return NotFound(new { error = $"Table '{tableName}' not found" });
 
@@ -58,7 +57,7 @@ namespace WebAPI.Controllers
             try
             {
                 // Валідація
-                var validation = _tableService.ValidateTableCreation(
+                var validation = TableService.ValidateTableCreation(
                     request.TableName, 
                     request.Columns
                 );
@@ -66,7 +65,7 @@ namespace WebAPI.Controllers
                 if (!validation.IsValid)
                     return BadRequest(new { errors = validation.Errors });
 
-                _tableService.CreateTable(request.TableName, request.Columns);
+                TableService.CreateTable(request.TableName, request.Columns);
                 
                 return Ok(new { message = "Table created successfully" });
             }
@@ -89,7 +88,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var result = _tableService.DeleteTable(tableName);
+                var result = TableService.DeleteTable(tableName);
                 
                 if (!result)
                     return NotFound(new { error = $"Table '{tableName}' not found" });
@@ -111,7 +110,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var rows = _tableService.GetAllRows(tableName);
+                var rows = TableService.GetAllRows(tableName);
                 
                 // Серіалізуємо дані з урахуванням спеціальних типів
                 var serializedRows = rows.Select(row => 
@@ -135,7 +134,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var row = _tableService.GetRow(tableName, rowIndex);
+                var row = TableService.GetRow(tableName, rowIndex);
                 
                 if (row == null || row.Count == 0)
                     return NotFound(new { error = "Row not found" });
@@ -158,33 +157,100 @@ namespace WebAPI.Controllers
         {
             try
             {
-                // Парсимо файли
+                // Отримуємо файли БЕЗПОСЕРЕДНЬО з Request.Form.Files
                 var fileRecords = new Dictionary<string, FileRecord?>();
-                if (request.Files != null && request.Files.Any())
+                var files = Request.Form.Files; // Отримуємо всі файли з форми
+
+                if (files != null && files.Any())
                 {
-                    foreach (var file in request.Files)
+                    foreach (var file in files)
                     {
-                        var columnName = file.Name;
+                        var columnName = file.Name; // Ім'я поля = ім'я колонки
                         using var memoryStream = new MemoryStream();
                         await file.CopyToAsync(memoryStream);
                         var content = memoryStream.ToArray();
                         
-                        var fileRecord = await _fileService.CreateFileRecordAsync(
-                            file.FileName, 
-                            content
+                        var storagePath = await _fileService.SaveFileAsync(
+                            content,
+                            file.FileName
                         );
                         
-                        fileRecords[columnName] = fileRecord;
+                        fileRecords[columnName] = new FileRecord
+                        {
+                            FileName = file.FileName,
+                            Size = content.Length,
+                            MimeType = file.ContentType,
+                            StoragePath = storagePath
+                        };
                     }
                 }
 
-                // Парсимо звичайні дані
+                // Решта коду залишається без змін
                 var rawData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(
                     request.Data ?? "{}"
                 );
 
-                // Парсимо та валідуємо
-                var (values, validation) = _tableService.ParseAndValidateRowData(
+                // Попередня обробка IntegerInterval та FileRecord
+                if (rawData != null)
+                {
+                    var table = TableService.GetTable(tableName);
+                    if (table != null)
+                    {
+                        var integerIntervalColumns = table.Columns.Where(c => c.Type == DataType.IntegerInterval);
+                        var fileRecordColumns = table.Columns.Where(c => c.Type == DataType.TextFile);
+                        var options = new System.Text.Json.JsonSerializerOptions
+                        {
+                            Converters = {
+                                new CoreLib.Serialization.IntegerIntervalJsonConverter(),
+                                new CoreLib.Serialization.FileRecordJsonConverter(),
+                            }
+                        };
+
+                        foreach (var column in integerIntervalColumns)
+                        {
+                            if (rawData.TryGetValue(column.Name, out var value) && value != null)
+                            {
+                                if (value is System.Text.Json.JsonElement jsonElement)
+                                {
+                                    try
+                                    {
+                                        var jsonString = jsonElement.GetRawText();
+                                        var interval = System.Text.Json.JsonSerializer.Deserialize<CoreLib.Models.IntegerInterval>(jsonString, options);
+                                        if (interval != null)
+                                        {
+                                            rawData[column.Name] = interval;
+                                        }
+                                    }
+                                    catch (System.Text.Json.JsonException){}
+                                }
+                            }
+                        }
+                        
+                        foreach (var column in fileRecordColumns)
+                        {
+                            // Для файлів: якщо файл не завантажено через форму, але є в JSON
+                            if (!fileRecords.ContainsKey(column.Name) && 
+                                rawData.TryGetValue(column.Name, out var value) && value != null)
+                            {
+                                if (value is System.Text.Json.JsonElement jsonElement)
+                                {
+                                    try
+                                    {
+                                        var jsonString = jsonElement.GetRawText();
+                                        var record = System.Text.Json.JsonSerializer.Deserialize<CoreLib.Models.FileRecord>(jsonString, options);
+                                        if (record != null)
+                                        {
+                                            fileRecords[column.Name] = record;
+                                        }
+                                    }
+                                    catch (System.Text.Json.JsonException) { }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var (values, validation) = TableService.ParseAndValidateRowData(
                     tableName, 
                     rawData ?? new Dictionary<string, object?>(), 
                     fileRecords
@@ -193,9 +259,9 @@ namespace WebAPI.Controllers
                 if (!validation.IsValid)
                     return BadRequest(new { errors = validation.Errors });
 
-                _tableService.AddRow(tableName, values);
+                TableService.AddRow(tableName, values);
                 
-                return Ok(new { message = "Row added successfully" });
+                return Ok(new { message = "Row updated successfully" });
             }
             catch (ArgumentException ex)
             {
@@ -203,7 +269,7 @@ namespace WebAPI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding row");
+                _logger.LogError(ex, "Error updating row");
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }
@@ -212,7 +278,7 @@ namespace WebAPI.Controllers
         /// Оновити рядок
         /// </summary>
         [HttpPut("{tableName}/rows/{rowIndex}")]
-        [RequestSizeLimit(52428800)] // 50 MB
+        [RequestSizeLimit(52428800)]
         public async Task<IActionResult> UpdateRow(
             string tableName, 
             int rowIndex, 
@@ -220,33 +286,100 @@ namespace WebAPI.Controllers
         {
             try
             {
-                // Парсимо файли
+                // Отримуємо файли БЕЗПОСЕРЕДНЬО з Request.Form.Files
                 var fileRecords = new Dictionary<string, FileRecord?>();
-                if (request.Files != null && request.Files.Any())
+                var files = Request.Form.Files; // Отримуємо всі файли з форми
+
+                if (files != null && files.Any())
                 {
-                    foreach (var file in request.Files)
+                    foreach (var file in files)
                     {
-                        var columnName = file.Name;
+                        var columnName = file.Name; // Ім'я поля = ім'я колонки
                         using var memoryStream = new MemoryStream();
                         await file.CopyToAsync(memoryStream);
                         var content = memoryStream.ToArray();
                         
-                        var fileRecord = await _fileService.CreateFileRecordAsync(
-                            file.FileName, 
-                            content
+                        var storagePath = await _fileService.SaveFileAsync(
+                            content,
+                            file.FileName
                         );
                         
-                        fileRecords[columnName] = fileRecord;
+                        fileRecords[columnName] = new FileRecord
+                        {
+                            FileName = file.FileName,
+                            Size = content.Length,
+                            MimeType = file.ContentType,
+                            StoragePath = storagePath
+                        };
                     }
                 }
 
-                // Парсимо звичайні дані
+                // Решта коду залишається без змін
                 var rawData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(
                     request.Data ?? "{}"
                 );
 
-                // Парсимо та валідуємо
-                var (values, validation) = _tableService.ParseAndValidateRowData(
+                // Попередня обробка IntegerInterval та FileRecord
+                if (rawData != null)
+                {
+                    var table = TableService.GetTable(tableName);
+                    if (table != null)
+                    {
+                        var integerIntervalColumns = table.Columns.Where(c => c.Type == DataType.IntegerInterval);
+                        var fileRecordColumns = table.Columns.Where(c => c.Type == DataType.TextFile);
+                        var options = new System.Text.Json.JsonSerializerOptions
+                        {
+                            Converters = {
+                                new CoreLib.Serialization.IntegerIntervalJsonConverter(),
+                                new CoreLib.Serialization.FileRecordJsonConverter(),
+                            }
+                        };
+
+                        foreach (var column in integerIntervalColumns)
+                        {
+                            if (rawData.TryGetValue(column.Name, out var value) && value != null)
+                            {
+                                if (value is System.Text.Json.JsonElement jsonElement)
+                                {
+                                    try
+                                    {
+                                        var jsonString = jsonElement.GetRawText();
+                                        var interval = System.Text.Json.JsonSerializer.Deserialize<CoreLib.Models.IntegerInterval>(jsonString, options);
+                                        if (interval != null)
+                                        {
+                                            rawData[column.Name] = interval;
+                                        }
+                                    }
+                                    catch (System.Text.Json.JsonException){}
+                                }
+                            }
+                        }
+                        
+                        foreach (var column in fileRecordColumns)
+                        {
+                            // Для файлів: якщо файл не завантажено через форму, але є в JSON
+                            if (!fileRecords.ContainsKey(column.Name) && 
+                                rawData.TryGetValue(column.Name, out var value) && value != null)
+                            {
+                                if (value is System.Text.Json.JsonElement jsonElement)
+                                {
+                                    try
+                                    {
+                                        var jsonString = jsonElement.GetRawText();
+                                        var record = System.Text.Json.JsonSerializer.Deserialize<CoreLib.Models.FileRecord>(jsonString, options);
+                                        if (record != null)
+                                        {
+                                            fileRecords[column.Name] = record;
+                                        }
+                                    }
+                                    catch (System.Text.Json.JsonException) { }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var (values, validation) = TableService.ParseAndValidateRowData(
                     tableName, 
                     rawData ?? new Dictionary<string, object?>(), 
                     fileRecords
@@ -255,7 +388,7 @@ namespace WebAPI.Controllers
                 if (!validation.IsValid)
                     return BadRequest(new { errors = validation.Errors });
 
-                _tableService.UpdateRow(tableName, rowIndex, values);
+                TableService.UpdateRow(tableName, rowIndex, values);
                 
                 return Ok(new { message = "Row updated successfully" });
             }
@@ -278,7 +411,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var result = _tableService.DeleteRow(tableName, rowIndex);
+                var result = TableService.DeleteRow(tableName, rowIndex);
                 
                 if (!result)
                     return NotFound(new { error = "Row not found" });
@@ -300,7 +433,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var (success, error) = _tableService.TryRenameColumn(
+                var (success, error) = TableService.TryRenameColumn(
                     tableName, 
                     request.OldName, 
                     request.NewName
@@ -327,7 +460,7 @@ namespace WebAPI.Controllers
             try
             {
                 // Валідація
-                var validation = _tableService.ValidateColumnOperation(
+                var validation = TableService.ValidateColumnOperation(
                     tableName, 
                     "reorder", 
                     newOrder: request.NewOrder
@@ -336,7 +469,7 @@ namespace WebAPI.Controllers
                 if (!validation.IsValid)
                     return BadRequest(new { errors = validation.Errors });
 
-                var result = _tableService.ReorderColumns(tableName, request.NewOrder);
+                var result = TableService.ReorderColumns(tableName, request.NewOrder);
                 
                 if (!result)
                     return BadRequest(new { error = "Failed to reorder columns" });
@@ -358,7 +491,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var table = _tableService.GetTable(tableName);
+                var table = TableService.GetTable(tableName);
                 if (table == null)
                     return NotFound(new { error = $"Table '{tableName}' not found" });
 
@@ -422,13 +555,13 @@ namespace WebAPI.Controllers
     public class AddRowRequest
     {
         public string? Data { get; set; }
-        public IFormFileCollection? Files { get; set; }
+        // public IFormFileCollection? Files { get; set; }
     }
 
     public class UpdateRowRequest
     {
         public string? Data { get; set; }
-        public IFormFileCollection? Files { get; set; }
+        // public IFormFileCollection? Files { get; set; }
     }
 
     public class RenameColumnRequest

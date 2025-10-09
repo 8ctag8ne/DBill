@@ -1,4 +1,4 @@
-import { API_BASE_URL, ApiResponse } from "./types";
+import { API_BASE_URL, type ApiResponse, getHeaders } from "./types";
 
 export class FileApi {
   static async upload(file: File): Promise<ApiResponse<{ storagePath: string }>> {
@@ -7,6 +7,7 @@ export class FileApi {
 
     const response = await fetch(`${API_BASE_URL}/file/upload`, {
       method: 'POST',
+      headers: getHeaders(),
       body: formData
     });
     return response.json();
@@ -14,7 +15,9 @@ export class FileApi {
 
   static async download(storagePath: string): Promise<Blob> {
     const response = await fetch(
-      `${API_BASE_URL}/file/download?storagePath=${encodeURIComponent(storagePath)}`
+      `${API_BASE_URL}/file/download?storagePath=${encodeURIComponent(storagePath)}`,{
+        headers: getHeaders(),
+      }
     );
     return response.blob();
   }
@@ -23,7 +26,8 @@ export class FileApi {
     const response = await fetch(
       `${API_BASE_URL}/file?storagePath=${encodeURIComponent(storagePath)}`,
       {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeaders(),
       }
     );
     return response.json();
@@ -31,7 +35,8 @@ export class FileApi {
 
   static async cleanup(): Promise<ApiResponse> {
     const response = await fetch(`${API_BASE_URL}/file/cleanup`, {
-      method: 'POST'
+      method: 'POST',
+      headers: getHeaders(),
     });
     return response.json();
   }

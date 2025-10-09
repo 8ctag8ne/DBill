@@ -11,8 +11,8 @@ namespace CoreLib.Services
         private readonly FileService _tempFileService;
         private Database? _currentDatabase;
 
-        public Database? CurrentDatabase 
-        { 
+        public Database? CurrentDatabase
+        {
             get => _currentDatabase;
             set => _currentDatabase = value;
         }
@@ -193,7 +193,7 @@ namespace CoreLib.Services
                 {
                     for (int i = 0; i < column.Values.Count; i++)
                     {
-                        if (column.Values[i] is FileRecord fileRecord && 
+                        if (column.Values[i] is FileRecord fileRecord &&
                             !string.IsNullOrWhiteSpace(fileRecord.StoragePath))
                         {
                             var currentRecord = fileRecord;
@@ -201,12 +201,12 @@ namespace CoreLib.Services
                             {
                                 // Завантажуємо файл з тимчасового сховища
                                 var content = await _tempFileService.LoadFileAsync(currentRecord.StoragePath);
-                                
+
                                 // Зберігаємо в основне сховище
                                 var newStoragePath = await _fileService.SaveFileAsync(
-                                    content, 
+                                    content,
                                     currentRecord.FileName);
-                                
+
                                 // Безпосередньо оновлюємо об'єкт в колекції
                                 currentRecord.StoragePath = newStoragePath;
                             }
@@ -227,7 +227,7 @@ namespace CoreLib.Services
             {
                 foreach (var element in column.Values)
                 {
-                    if (element is FileRecord fileRecord && 
+                    if (element is FileRecord fileRecord &&
                         !string.IsNullOrWhiteSpace(fileRecord.StoragePath))
                     {
                         try
@@ -238,6 +238,23 @@ namespace CoreLib.Services
                     }
                 }
             }
+        }
+
+        public async Task<byte[]> ExportDatabaseAsync()
+        {
+            if (_currentDatabase == null)
+                throw new InvalidOperationException("No database is currently loaded");
+
+            var validation = _currentDatabase.Validate();
+            if (!validation.IsValid)
+                throw new InvalidOperationException($"Cannot export invalid database: {string.Join(", ", validation.Errors)}");
+
+            return await _storageService.ExportDatabaseToBytesAsync(_currentDatabase);
+        }
+
+        public string GetCurrentDatabaseName()
+        {
+            return _currentDatabase?.Name ?? "database";
         }
     }
 }

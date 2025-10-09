@@ -337,6 +337,11 @@ namespace CoreLib.Services
                 var minProperty = type.GetProperty("Min");
                 var maxProperty = type.GetProperty("Max");
 
+                if (type == typeof(IntegerInterval))
+                {
+                    return intervalData as IntegerInterval;
+                }
+
                 if (minProperty != null && maxProperty != null)
                 {
                     var minStr = minProperty.GetValue(intervalData) as string;

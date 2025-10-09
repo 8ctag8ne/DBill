@@ -15,12 +15,12 @@ namespace CoreLib.Services
         {
             _fileStorage = fileStorage ?? throw new ArgumentNullException(nameof(fileStorage));
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
-            
+
             _jsonOptions = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                Converters = 
+                Converters =
                 {
                     new DatabaseJsonConverter(),
                     new IntegerIntervalJsonConverter(),
@@ -41,7 +41,7 @@ namespace CoreLib.Services
             {
                 var jsonBytes = await _fileStorage.ReadAllBytesAsync(filePath);
                 var database = JsonSerializer.Deserialize<Database>(jsonBytes, _jsonOptions);
-                
+
                 if (database == null)
                     throw new InvalidOperationException("Failed to deserialize database");
 
@@ -55,9 +55,9 @@ namespace CoreLib.Services
 
         public async Task SaveDatabaseAsync(Database database, string filePath, CancellationToken ct = default)
         {
-            if (database == null) 
+            if (database == null)
                 throw new ArgumentNullException(nameof(database));
-            if (string.IsNullOrWhiteSpace(filePath)) 
+            if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be null or empty", nameof(filePath));
 
             try
@@ -67,7 +67,7 @@ namespace CoreLib.Services
 
                 // Серіалізуємо все одним махом
                 var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(database, _jsonOptions);
-                
+
                 // Зберігаємо у файл
                 await _fileStorage.WriteAllBytesAsync(filePath, jsonBytes);
             }
@@ -116,6 +116,25 @@ namespace CoreLib.Services
         public async Task<bool> DatabaseExistsAsync(string filePath)
         {
             return await _fileStorage.ExistsAsync(filePath);
+        }
+        
+        public async Task<byte[]> ExportDatabaseToBytesAsync(Database database, CancellationToken ct = default)
+        {
+            if (database == null) 
+                throw new ArgumentNullException(nameof(database));
+
+            try
+            {
+                // Завантажуємо всі файли в пам'ять перед серіалізацією
+                await LoadAllFileContentsForSave(database, ct);
+
+                // Серіалізуємо все одним махом в масив байтів
+                return JsonSerializer.SerializeToUtf8Bytes(database, _jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to export database: {ex.Message}", ex);
+            }
         }
     }
 }

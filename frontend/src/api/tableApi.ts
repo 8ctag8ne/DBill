@@ -1,15 +1,17 @@
-import { API_BASE_URL, ApiResponse, Column } from "./types";
+import { API_BASE_URL, type ApiResponse, type Column, getHeaders } from "./types";
 
 export class TableApi {
   static async getTable(tableName: string): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/table/${encodeURIComponent(tableName)}`);
+    const response = await fetch(`${API_BASE_URL}/table/${encodeURIComponent(tableName)}`, {
+      headers: getHeaders(),
+    });
     return response.json();
   }
 
   static async create(tableName: string, columns: Column[]): Promise<ApiResponse> {
     const response = await fetch(`${API_BASE_URL}/table/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ tableName, columns })
     });
     return response.json();
@@ -17,19 +19,24 @@ export class TableApi {
 
   static async delete(tableName: string): Promise<ApiResponse> {
     const response = await fetch(`${API_BASE_URL}/table/${encodeURIComponent(tableName)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders(),
     });
     return response.json();
   }
 
   static async getAllRows(tableName: string): Promise<ApiResponse<{ rows: any[] }>> {
-    const response = await fetch(`${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows`);
+    const response = await fetch(`${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows`,{
+      headers: getHeaders(),
+    });
     return response.json();
   }
 
   static async getRow(tableName: string, rowIndex: number): Promise<ApiResponse> {
     const response = await fetch(
-      `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows/${rowIndex}`
+      `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows/${rowIndex}`, {
+        headers: getHeaders(),
+      }
     );
     return response.json();
   }
@@ -40,8 +47,11 @@ export class TableApi {
     files?: Record<string, File>
   ): Promise<ApiResponse> {
     const formData = new FormData();
+    
+    // Додаємо дані як JSON
     formData.append('Data', JSON.stringify(data));
 
+    // Додаємо файли
     if (files) {
       for (const [columnName, file] of Object.entries(files)) {
         formData.append(columnName, file);
@@ -52,6 +62,9 @@ export class TableApi {
       `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows`,
       {
         method: 'POST',
+        headers: {
+          'X-Session-Id': getHeaders()['X-Session-Id'],
+        },
         body: formData
       }
     );
@@ -77,6 +90,9 @@ export class TableApi {
       `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows/${rowIndex}`,
       {
         method: 'PUT',
+        headers: {
+          'X-Session-Id': getHeaders()['X-Session-Id'],
+        },
         body: formData
       }
     );
@@ -87,7 +103,8 @@ export class TableApi {
     const response = await fetch(
       `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/rows/${rowIndex}`,
       {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeaders(),
       }
     );
     return response.json();
@@ -95,7 +112,9 @@ export class TableApi {
 
   static async getColumns(tableName: string): Promise<ApiResponse<{ columns: Column[] }>> {
     const response = await fetch(
-      `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/columns`
+      `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/columns`, {
+        headers: getHeaders(),
+      }
     );
     return response.json();
   }
@@ -109,7 +128,7 @@ export class TableApi {
       `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/columns/rename`,
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({ oldName, newName })
       }
     );
@@ -124,7 +143,7 @@ export class TableApi {
       `${API_BASE_URL}/table/${encodeURIComponent(tableName)}/columns/reorder`,
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({ newOrder })
       }
     );

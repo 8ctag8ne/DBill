@@ -10,5 +10,7 @@ namespace CoreLib.Services
         Task<Database> LoadDatabaseAsync(string filePath, CancellationToken ct = default);
         Task SaveDatabaseAsync(Database database, string filePath, CancellationToken ct = default);
         Task<bool> DatabaseExistsAsync(string filePath);
+
+        Task<byte[]> ExportDatabaseToBytesAsync(Database database, CancellationToken ct = default);
     }
 }

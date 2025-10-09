@@ -6,14 +6,12 @@ namespace WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class DatabaseController : ControllerBase
+    public class DatabaseController : BaseApiController
     {
-        private readonly DatabaseService _databaseService;
         private readonly ILogger<DatabaseController> _logger;
 
-        public DatabaseController(DatabaseService databaseService, ILogger<DatabaseController> logger)
+        public DatabaseController(DatabaseService databaseService, ILogger<DatabaseController> logger, ISessionService sessionService) : base(sessionService)
         {
-            _databaseService = databaseService;
             _logger = logger;
         }
 
@@ -28,7 +26,7 @@ namespace WebAPI.Controllers
                 if (string.IsNullOrWhiteSpace(request.Name))
                     return BadRequest(new { error = "Database name cannot be empty" });
 
-                var database = _databaseService.CreateDatabase(request.Name);
+                var database = DatabaseService.CreateDatabase(request.Name);
                 return Ok(new { 
                     message = "Database created successfully", 
                     name = database.Name 
@@ -67,9 +65,9 @@ namespace WebAPI.Controllers
 
                 try
                 {
-                    var database = await _databaseService.LoadDatabaseAsync(tempPath);
+                    var database = await DatabaseService.LoadDatabaseAsync(tempPath);
                     
-                    return Ok(new { 
+                    return Ok(new {
                         message = "Database loaded successfully", 
                         name = database.Name,
                         tableCount = database.Tables.Count
@@ -106,7 +104,7 @@ namespace WebAPI.Controllers
                 if (string.IsNullOrWhiteSpace(request.FilePath))
                     return BadRequest(new { error = "File path cannot be empty" });
 
-                await _databaseService.SaveDatabaseAsync(request.FilePath);
+                await DatabaseService.SaveDatabaseAsync(request.FilePath);
                 
                 return Ok(new { message = "Database saved successfully" });
             }
@@ -129,10 +127,10 @@ namespace WebAPI.Controllers
         {
             try
             {
-                if (_databaseService.CurrentDatabase == null)
+                if (DatabaseService.CurrentDatabase == null)
                     return NotFound(new { error = "No database is currently loaded" });
 
-                var db = _databaseService.CurrentDatabase;
+                var db = DatabaseService.CurrentDatabase;
                 return Ok(new
                 {
                     name = db.Name,
@@ -152,6 +150,31 @@ namespace WebAPI.Controllers
             }
         }
 
+        [HttpPost("download")]
+        public async Task<IActionResult> DownloadDatabase()
+        {
+            try
+            {
+                var databaseBytes = await DatabaseService.ExportDatabaseAsync();
+                var databaseName = DatabaseService.GetCurrentDatabaseName();
+                
+                // Формуємо ім'я файлу
+                var fileName = $"{databaseName}.json";
+                
+                // Повертаємо файл
+                return File(databaseBytes, "application/json", fileName);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting database");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
         /// <summary>
         /// Отримати список таблиць
         /// </summary>
@@ -160,7 +183,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var tableNames = _databaseService.GetTableNames();
+                var tableNames = DatabaseService.GetTableNames();
                 return Ok(new { tables = tableNames });
             }
             catch (Exception ex)
@@ -178,7 +201,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var stats = _databaseService.GetStatistics();
+                var stats = DatabaseService.GetStatistics();
                 return Ok(stats);
             }
             catch (InvalidOperationException ex)
@@ -200,7 +223,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                var validation = _databaseService.ValidateCurrentDatabase();
+                var validation = DatabaseService.ValidateCurrentDatabase();
                 return Ok(new
                 {
                     isValid = validation.IsValid,
@@ -222,7 +245,7 @@ namespace WebAPI.Controllers
         {
             try
             {
-                await _databaseService.CloseDatabase();
+                await DatabaseService.CloseDatabase();
                 return Ok(new { message = "Database closed successfully" });
             }
             catch (Exception ex)

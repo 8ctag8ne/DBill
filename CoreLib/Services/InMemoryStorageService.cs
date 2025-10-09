@@ -43,5 +43,10 @@ namespace CoreLib.Services
         {
             throw new NotImplementedException();
         }
+
+        public Task<byte[]> ExportDatabaseToBytesAsync(Database database, CancellationToken ct = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

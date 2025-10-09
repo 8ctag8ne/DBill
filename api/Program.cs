@@ -31,6 +31,10 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 52428800; // 50 MB
 });
 
+
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<ISessionService, SessionService>();
 // Реєстрація сервісів бібліотеки
 // Використовуємо вашу існуючу реалізацію LocalFileStorage з CoreLib
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorage>();
