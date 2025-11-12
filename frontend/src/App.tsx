@@ -78,11 +78,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-blue-600 text-gray-900 p-4 shadow-lg">
-        <div className="container w-screen flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+        <div className="w-full flex items-center justify-between">
+          <h2 className="text-2xl text-white font-bold flex items-center gap-2">
             <Database size={28} />
             Database Manager
-          </h1>
+          </h2>
           <div className="flex gap-2">
             <button
               onClick={() => setCurrentPage('home')}
@@ -108,7 +108,7 @@ export default function App() {
           </div>
         </div>
       </nav>
-      <main className="container w-screen p-6">
+      <main className="w-screen p-6">
         {renderPage()}
       </main>
     </div>

@@ -351,13 +351,13 @@ export function RowForm({
   const isEditing = editingRowIndex !== null && editingRowIndex !== undefined;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 backdrop-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-6 text-gray-900">
           <div className="flex justify-between items-start gap-4">
             <div>
-              <h3 className="text-2xl font-bold">
+              <h3 className="text-2xl font-bold text-white">
                 {isEditing ? 'Edit Row' : 'Add New Row'}
               </h3>
               <p className="text-blue-100 mt-1 text-sm">

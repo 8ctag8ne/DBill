@@ -168,7 +168,7 @@ export function TableViewPage({ tableName, onBack }: any) {
                 <th key={col.name} className="px-4 py-3 text-left font-semibold text-gray-900">
                   {col.name}
                   <span className="text-xs text-gray-500 ml-2">
-                    ({DataType[col.type]})
+                    ({col.type})
                   </span>
                 </th>
               ))}
